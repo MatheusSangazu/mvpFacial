@@ -1,0 +1,11 @@
+# Vision Service - Dependencias Python
+# Instalar com: pip install -r requirements.txt
+
+fastapi==0.115.6
+uvicorn[standard]==0.34.0
+deepface==0.0.93
+opencv-python==4.10.0.84
+numpy==2.2.1
+python-multipart==0.0.20
+pydantic==2.10.4
+python-dotenv==1.0.1
