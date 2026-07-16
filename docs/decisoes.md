@@ -170,22 +170,25 @@ Dados inválidos retornam erro **específico** (qual camada falhou) para revisã
 
 ## ADR-007 — Azure Face API com _mock_ temporário (Limited Access)
 
-- **Status:** Aceita
+- **Status:** Substituída por ADR-010
 - **Data:** 2026-07-15
 
 ### Contexto
 A Microsoft restringiu capacidades da Face API (princípios de IA responsável); o login facial exige aprovação de "Limited Access", que pode demorar. A equipe vai solicitar **trial de 30 dias** e preencher os formulários da Microsoft.
 
-### Decisão
+### Decisão (original)
 - **Motor 3 será o último a ser testado** no cronograma, dado o risco da aprovação.
 - Enquanto a conta não é aprovada, o Motor 3 retorna **_mock_** parametrizado por _feature flag_ (`AZURE_USE_MOCK=true`).
 - Assim que aprovado, basta desligar a flag para integrar de verdade.
+
+### Motivo da substituição
+Após reunião com a equipe, decidiu-se **concentrar a stack no ecossistema Google** (ver ADR-010). O Azure foi removido do escopo.
 
 ### Alternativas
 1. Esperar a aprovação antes de começar — descartado (bloqueia o cronograma).
 2. Usar AWS Rekognition — alternativa válida, registrar como ADR se migrarmos.
 
-### Consequências
+### Consequências (históricas)
 - **+** Não bloqueia o MVP; métricas reais do Cloud virão quando a aprovação sair.
 - **−** Comparação do Motor 3 fica parcial até a aprovação.
 - **−** Risco de a aprovação demorar mais que o trial de 30 dias.
@@ -237,7 +240,7 @@ Vetores faciais são dados biométricos sensíveis (LGPD). Se alguém acessar o 
 ### Decisão
 
 **Em trânsito (dados viajando entre serviços)**
-- Usar **HTTPS/TLS** em todos os hops (frontend↔backend, backend↔vision-service, backend↔Gemini/Azure).
+- Usar **HTTPS/TLS** em todos os hops (frontend↔backend, backend↔vision-service, backend↔Gemini).
 - Nenhum endpoint em `http://` em ambientes não locais. O TLS cuida da criptografia automaticamente; nada manual.
 
 **Em repouso (dados guardados no banco)**
@@ -255,3 +258,37 @@ Vetores faciais são dados biométricos sensíveis (LGPD). Se alguém acessar o 
 - **+** Atende ao princípio de segurança da LGPD.
 - **−** C# precisa gerenciar a chave de criptografia com cuidado (rotação, backup seguro da chave).
 - **−** Pequeno overhead de CPU no backend para cifrar/decifrar (desprezível).
+
+---
+
+## ADR-010 — Migrar para o ecossistema Google; remover Azure e reduzir para 2 motores
+
+- **Status:** Aceita
+- **Data:** 2026-07-15
+- **Substitui:** ADR-007
+
+### Contexto
+Após reunião com a equipe, decidiu-se que a stack deve ser concentrada **exclusivamente no ecossistema Google**. Isso implica remover o Motor 3 (Azure Face API) e quaisquer soluções baseadas em GPT/AWS. O sistema fica então com **2 motores** de reconhecimento facial.
+
+Pesquisa confirmou que **o Google não oferece um serviço gerenciado equivalente ao Azure Face API**. O Google Cloud Vision API faz apenas _detecção_ de rostos (atributos, emoções, marcos), mas **explicitamente não suporta reconhecimento/verificação facial 1:1 ou 1:N** (fonte: [documentação oficial](https://docs.cloud.google.com/vision/docs/detecting-faces) — "Specific individual Facial Recognition is not supported").
+
+### Decisão
+1. **Remover o Motor 3 (Azure)** e todo o código/configuração/mock associado.
+2. O projeto passa a ter **2 motores**:
+   - **Motor 1:** IA Generativa (Gemini) — demo de falha (mantido, ADR-002).
+   - **Motor 2:** Visão computacional local (DeepFace + OpenCV) — CPU vs GPU (mantido).
+3. **A ausência de um Motor 3 cloud vira um ponto de aprendizado** na apresentação executiva (narrativa do "buraco do Google"): explicar que o ecossistema Google não tem biometria facial gerenciada por princípios de IA responsável, e por isso a visão local (Motor 2) é o caminho viável no Google.
+4. Extração de documentos continua com **Gemini 2.0 Flash** (ADR-005), já é Google.
+
+### Alternativas consideradas (e por que descartadas)
+1. **Hospedar Facenet/ArcFace no Vertex AI como "Motor 3 cloud"** — descartado: usa o mesmo modelo do Motor 2, só mudando o local de execução; a comparação viraria "mesmo algoritmo, local vs nuvem", não traz aprendizado novo. Consome tempo precioso do cronograma de 5 dias.
+2. **Usar Gemini para comparação facial 1:1 como Motor 3** — descartado: redundante com o Motor 1 (mesma lição: IA generativa não serve para biometria), só que em modo matching em vez de liveness.
+3. **Manter 3 motores com outro provedor (AWS Rekognition)** — descartado pela decisão de ficar só no ecossistema Google.
+
+### Consequências
+- **+** Stack 100% Google; alinhado com a decisão da equipe.
+- **+** Menos complexidade (sem Azure, sem _mock_, sem _feature flags_ de aprovação).
+- **+** Cronograma de 5 dias mais factível.
+- **+** Narrativa do "buraco do Google" vira diferencial educativo na apresentação.
+- **−** Comparativo passa de 3 para 2 motores.
+- **−** Perde-se a demonstração de um serviço cloud enterprise de biometria.

@@ -45,7 +45,6 @@ Visão de alto nível dos componentes e dos fluxos de cadastro e login. Para dec
 - Orquestrador central: regras de negócio, persistência, métricas.
 - `GeminiService`: extração de documentos (e Motor 1 de liveness).
 - `PythonVisionService`: cliente HTTP para o vision-service (Motor 2).
-- Cliente para Azure Face API (Motor 3, com _mock_).
 - Validação determinística dos dados extraídos (ver ADR-006).
 
 ### Vision Service (Python / FastAPI)
@@ -79,7 +78,7 @@ Visão de alto nível dos componentes e dos fluxos de cadastro e login. Para dec
 ## Fluxo de Login Facial
 
 ```text
-1. Usuário abre /login e SELECIONA o motor (1, 2 ou 3)
+1. Usuário abre /login e SELECIONA o motor (1 ou 2)
 2. Next.js captura vídeo/foto
 3. Next.js -> Backend (POST /api/login/facial { motor })
 4. Backend roteia conforme o motor:
@@ -92,9 +91,6 @@ Visão de alto nível dos componentes e dos fluxos de cadastro e login. Para dec
    -> Vision Service executa desafio (OpenCV) + embedding (DeepFace)
    -> compara contra os embeddings cadastrados (score máximo, threshold)
    -> CPU ou GPU conforme toggle
-
-   MOTOR 3 (Cloud — mock enquanto Azure não aprova)
-   -> AzureFaceService (ou mock) compara a foto com o Vetor Mestre
 
 5. Backend registra resultado + métricas em Biometria_Logs
 6. Backend devolve sucesso/falha + métricas ao Next.js

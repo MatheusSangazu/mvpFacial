@@ -56,7 +56,7 @@ Endpoints dos dois serviços HTTP. Tudo em JSON. Imagens enviadas como `multipar
 `POST /api/login/facial`
 - Body:
 ```json
-{ "motor": 1 | 2 | 3, "dispositivo": "cpu" | "cuda", "midia": "<base64 ou multipart>" }
+{ "motor": 1 | 2, "dispositivo": "cpu" | "cuda", "midia": "<base64 ou multipart>" }
 ```
 - Resposta `200`:
 ```json
@@ -128,4 +128,3 @@ Endpoints dos dois serviços HTTP. Tudo em JSON. Imagens enviadas como `multipar
 | `VISION_UNAVAILABLE` | Vision-service fora do ar |
 | `RATE_LIMITED` | Limite de chamadas excedido |
 | `NO_BIOMETRIA` | Usuário sem embeddings cadastrados |
-| `AZURE_MOCK` | Motor 3 rodando em modo simulado |

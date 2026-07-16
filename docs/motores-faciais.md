@@ -1,6 +1,6 @@
 # Motores Faciais
 
-Detalhamento dos 3 motores de login facial do MVP, com o que cada um demonstra, riscos, thresholds e parâmetros. Para o fluxo completo, veja [arquitetura.md](./arquitetura.md).
+Detalhamento dos 2 motores de login facial do MVP, com o que cada um demonstra, riscos, thresholds e parâmetros. Para o fluxo completo, veja [arquitetura.md](./arquitetura.md).
 
 ## Comparação rápida
 
@@ -8,7 +8,6 @@ Detalhamento dos 3 motores de login facial do MVP, com o que cada um demonstra, 
 |---|---|---|---|
 | 1 | IA Generativa (Gemini) | Mostrar **falha** (lento, vulnerável) | **Não** |
 | 2 | Visão local (DeepFace + OpenCV) | Mostrar viabilidade CPU vs GPU | Com ressalvas (liveness frágil) |
-| 3 | Cloud API (Azure Face) | Mostrar padrão robusto | Sim (mediante aprovação) |
 
 ---
 
@@ -62,23 +61,6 @@ Detalhamento dos 3 motores de login facial do MVP, com o que cada um demonstra, 
 
 ---
 
-## Motor 3 — Cloud API (Azure Face)
-
-**Propósito:** apresentar o padrão de mercado robusto, com liveness e matching profissionais.
-
-- **Fluxo:** C# consome a Face API (Verify + Liveness) usando o `faceId` cadastrado.
-- **Estado atual:** Azure exige aprovação de **Limited Access** → enquanto não aprovado, retorna **mock** com latência simulada (ADR-007).
-- **Prioridade no cronograma:** será o **último** motor a ser integrado/testado. A equipe vai solicitar **trial de 30 dias** e preencher os formulários da Microsoft. Até lá, segue em mock.
-- **Parâmetros:**
-  - Threshold de match definido pelo Azure (geralmente `0,5` no `verify`).
-  - Habilitar Liveness quando disponível na conta.
-
-### Quando aprovado
-- Registrar latência real e acurácia para comparação justa com Motores 1 e 2.
-- Considerar AWS Rekognition como alternativa (registrar como ADR se migrar).
-
----
-
 ## Recomendação de calibração
 
 Antes da apresentação, rodar um conjunto de **testes controlados**:
@@ -93,6 +75,13 @@ Esses números dão credibilidade à apresentação executiva.
 O valor do MVP está em mostrar **os dois lados**: acertos e **falhas** de cada motor.
 - **Motor 1:** espera-se latência alta e falsos positivos em spoofing (é a lição da demo).
 - **Motor 2:** pode falhar em iluminação/pose extremas; o liveness caseiro tem limites.
-- **Motor 3:** tende a ser o mais robusto, mas só saberemos após a aprovação da Azure.
+
+> **Nota:** o ecossistema Google **não possui** uma API de reconhecimento facial gerenciada (ver seção abaixo). Essa ausência vira um ponto de aprendizado na apresentação — o chamado "buraco do Google" — reforçando por que a visão local (Motor 2) é o caminho viável.
 
 Registrar sempre `erro` (código) e `autenticado` (bool) em `Biometria_Logs` para alimentar o dashboard com as **taxas de erro por motor** — dado central na apresentação executiva.
+
+## Por que não há Motor 3 (cloud)?
+
+O **Google Cloud Vision API** realiza apenas **detecção de rosto** (_face detection_), retornando _bounding boxes_, pontos faciais e atributos (emoção, óculos etc.). **Não** oferece **reconhecimento** (_1:N_, identificar quem é a pessoa num catálogo) nem **verificação** (_1:1_, confirmar que duas fotos são da mesma pessoa). Por isso, diferente do Azure Face API ou AWS Rekognition, não existe um serviço Google equivalente para compor um "Motor 3 em nuvem". 
+
+No ecossistema 100% Google adotado por este MVP (ADR-010), a alternativa viável é a **visão local** (Motor 2 com DeepFace), que roda na própria infraestrutura e não depende de um serviço gerenciado de reconhecimento facial.

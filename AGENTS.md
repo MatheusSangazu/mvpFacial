@@ -39,7 +39,7 @@ Antes de agir, leia nesta ordem:
    - [docs/setup.md](./docs/setup.md) — como rodar localmente.
    - [docs/api.md](./docs/api.md) — contrato de endpoints.
    - [docs/banco-dados.md](./docs/banco-dados.md) — schema de tabelas.
-   - [docs/motores-faciais.md](./docs/motores-faciais.md) — os 3 motores e thresholds.
+   - [docs/motores-faciais.md](./docs/motores-faciais.md) — os 2 motores e thresholds.
    - [docs/metricas.md](./docs/metricas.md) — o que medir e dashboard.
    - [docs/lgpd-seguranca.md](./docs/lgpd-seguranca.md) — dados sensíveis.
    - [docs/glossario.md](./docs/glossario.md) — termos do domínio.

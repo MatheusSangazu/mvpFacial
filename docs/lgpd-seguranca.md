@@ -31,7 +31,7 @@
 > Decisão detalhada em [ADR-009](./decisoes.md#adr-009).
 
 ### Em trânsito (dados viajando entre serviços)
-- **HTTPS/TLS** em todos os hops: frontend↔backend, backend↔vision-service, backend↔Gemini/Azure.
+- **HTTPS/TLS** em todos os hops: frontend↔backend, backend↔vision-service, backend↔Gemini.
 - Nenhum endpoint em `http://` em ambientes não locais. O TLS criptografa automaticamente; nada precisa ser feito manualmente além de garantir certificados válidos.
 
 ### Em repouso (dados guardados no banco)
@@ -71,7 +71,6 @@
 |---|---|
 | Vazamento de vetores faciais | Criptografia em repouso + acesso restrito |
 | Ataque de tela (spoofing) no Motor 1 | É proposital; marcado como inseguro |
-| Liveness frágil no Motor 2 | Comunicar limite; Motor 3 (Azure) é o robusto |
 | Uso indevido de fotos de documentos | Retenção curta + acesso auditado |
 | Custo/cloud abuse | Rate limiting + chaves com cota |
 

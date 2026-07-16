@@ -1,6 +1,6 @@
 # Métricas
 
-O MVP existe para **coletar métricas comparativas** entre os 3 motores. Este documento define o quê medir, onde armazenar e como apresentar.
+O MVP existe para **coletar métricas comparativas** entre os 2 motores. Este documento define o quê medir, onde armazenar e como apresentar.
 
 ## Objetivo da medição
 
@@ -22,7 +22,7 @@ Para **cada** operação de cadastro/login, registrar (tabela `Biometria_Logs`):
 | `autenticado` | Resultado final (true/false) |
 | `livenessOk` | Prova de vida passou |
 | `device` | `cpu` / `cuda` / `cloud` |
-| `motor` | 1, 2 ou 3 |
+| `motor` | 1 ou 2 |
 | `operacao` | `cadastro` / `login` |
 | `erro` | Código de erro, se houve |
 
@@ -34,7 +34,7 @@ Para **cada** operação de cadastro/login, registrar (tabela `Biometria_Logs`):
 | **FAR** (_False Acceptance Rate_) | % de impostores aceitos |
 | **FRR** (_False Rejection Rate_) | % de legítimos rejeitados |
 | **Taxa de spoofing detectado** | % de ataques de tela bloqueados (Motor 1 espera falhar aqui) |
-| **Custo por tentativa** | $ estimado (Gemini, Azure) — relevante p/ diretoria |
+| **Custo por tentativa** | $ estimado (Gemini) — relevante p/ diretoria |
 | **Throughput** | Tentativas/segundo (CPU vs GPU no Motor 2) |
 
 ## Onde armazenar
@@ -77,7 +77,7 @@ Para que FAR/FRR tenham sentido, executar um conjunto padronizado:
 2. **Impostores:** M tentativas com fotos de pessoas não cadastradas.
 3. **Spoofing:** K tentativas com foto de tela de celular da pessoa cadastrada.
 
-Mesmo conjunto aplicado aos 3 motores para comparação justa.
+Mesmo conjunto aplicado aos 2 motores para comparação justa.
 
 ## Evoluções futuras
 

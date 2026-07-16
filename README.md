@@ -1,12 +1,12 @@
 # MVP — Reconhecimento Facial e Extração Documental
 
-MVP funcional para validar tecnicamente **cadastro com extração inteligente de documentos** e **login biométrico facial** em 3 motores distintos, com coleta de métricas (latência e acurácia) para apresentação executiva.
+MVP funcional para validar tecnicamente **cadastro com extração inteligente de documentos** e **login biométrico facial** em 2 motores distintos, com coleta de métricas (latência e acurácia) para apresentação executiva.
 
 > Documento original de referência: [projeto.md](./projeto.md)
 
 ## Visão rápida
 
-- **Objetivo:** demonstrar, em 3 motores, diferentes abordagens de biometria facial (IA generativa, visão computacional local e Cloud API) e a extração de dados de documentos via IA multimodal.
+- **Objetivo:** demonstrar, em 2 motores, diferentes abordagens de biometria facial (IA generativa e visão computacional local) e a extração de dados de documentos via IA multimodal.
 - **Público:** diretoria/stakeholders, com métricas de tempo de resposta e acurácia.
 - **Status:** MVP de demonstração — **não é código de produção** (ver [docs/lgpd-seguranca.md](./docs/lgpd-seguranca.md) antes de qualquer uso real).
 
@@ -31,7 +31,7 @@ MVP funcional para validar tecnicamente **cadastro com extração inteligente de
 | [docs/setup.md](./docs/setup.md) | Como subir o projeto localmente |
 | [docs/api.md](./docs/api.md) | Contrato de endpoints |
 | [docs/banco-dados.md](./docs/banco-dados.md) | Schema de tabelas e vetores faciais |
-| [docs/motores-faciais.md](./docs/motores-faciais.md) | Detalhamento dos 3 motores, thresholds e riscos |
+| [docs/motores-faciais.md](./docs/motores-faciais.md) | Detalhamento dos 2 motores, thresholds e riscos |
 | [docs/metricas.md](./docs/metricas.md) | O que é medido e como visualizar |
 | [docs/lgpd-seguranca.md](./docs/lgpd-seguranca.md) | Dados sensíveis, consentimento, criptografia |
 | [docs/glossario.md](./docs/glossario.md) | Termos do domínio |
@@ -64,4 +64,3 @@ Veja [docs/setup.md](./docs/setup.md) para instruções detalhadas de cada servi
 
 - **Biometria = dado sensível (LGPD)** — ver [docs/lgpd-seguranca.md](./docs/lgpd-seguranca.md)
 - **Motor 1 é propositalmente inseguro** — demo de falha, não usar em produção
-- **Azure Face API** requer aprovação de "Limited Access"

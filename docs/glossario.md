@@ -19,7 +19,6 @@ Termos do domínio para onboarding de equipe e agentes de IA.
 | **CUDA** | Plataforma NVIDIA para processamento em GPU |
 | **LGPD** | Lei Geral de Proteção de Dados (Brasil); biometria é dado sensível |
 | **ADR** | _Architecture Decision Record_ — registro de decisão arquitetural |
-| **Motor 1/2/3** | Os três motores de login facial deste MVP (ver [motores-faciais.md](./motores-faciais.md)) |
-| **Limited Access (Azure)** | Política da Microsoft que exige aprovação para capacidades restritas da Face API |
+| **Motor 1/2** | Os dois motores de login facial deste MVP (ver [motores-faciais.md](./motores-faciais.md)) |
 | **Burst** | Captura rápida de várias fotos em sequência |
 | **System Prompt** | Instrução de sistema que define o comportamento/saída esperada do LLM |
