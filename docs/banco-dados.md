@@ -1,8 +1,10 @@
 # Banco de Dados
 
-Banco relacional hospedado em VPS. Vetores faciais ficam em tabela própria, em coluna JSON/array criptografada.
+Banco relacional **MySQL 8.0+** hospedado em VPS. Vetores faciais ficam em tabela própria, criptografados em nível de aplicação (AES-256 no C#, ADR-009).
 
-> Este é o schema **inicial** proposto — revisar conforme o SGBD escolhido (Postgres recomendado por suporte a `JSONB` e `pgcrypto`).
+> **Schema SQL executável:** [backend/Data/schema.sql](../backend/Data/schema.sql) — rode no MySQL para criar todas as tabelas. Decisão de SGBD registrada em [ADR-011](./decisoes.md).
+>
+> ORM: **Entity Framework Core** com **Pomelo Provider**.
 
 ## Diagrama de relacionamento (DER)
 
@@ -104,7 +106,8 @@ Histórico versionado dos termos exibidos no cadastro.
 
 ## Considerações de segurança
 
-- Vetores faciais e colunas sensíveis **criptografados em repouso** (ex.: `pgcrypto` no Postgres, ou criptografia na camada de aplicação no C# antes de gravar).
+- Vetores faciais **criptografados em nível de aplicação** (AES-256 no C#, ADR-009) antes de gravar — independe do SGBD.
+- MySQL oferece `AES_ENCRYPT`/`AES_DECRYPT` como camada adicional opcional (defesa em profundidade), mas **não substitui** a camada de aplicação.
 - Acesso ao banco restrito por usuário/role; o backend usa uma role com privilégios mínimos.
 - Backups também precisam ser criptografados (LGPD).
 - **Nunca** gravar a foto bruta permanentemente; se necessário temporariamente, definir prazo curto de expurgo.

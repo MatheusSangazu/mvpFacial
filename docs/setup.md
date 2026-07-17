@@ -67,11 +67,23 @@ Permissões necessárias no navegador: **câmera** (e microfone se capturar víd
 ```bash
 cd backend
 dotnet restore
-dotnet tool install --global dotnet-ef   # se for usar migrations
-dotnet ef database update                # cria/aplica schema
+
+# 1. Criar o banco no MySQL (uma vez só):
+#    mysql -u root -p < backend/Data/schema.sql
+#    Ou abra o MySQL Workbench e execute o conteudo de backend/Data/schema.sql
+
+# 2. (Opcional) Gerar/atualizar migrations via EF Core:
+dotnet tool install --global dotnet-ef   # se nao tiver instalado
+dotnet ef migrations add Inicial
+dotnet ef database update
+
+# 3. Rodar o backend
 dotnet run
 # escuta em http://localhost:5000
 ```
+
+> **String de conexão MySQL** (em `appsettings.Development.json` ou variável):
+> `Server=localhost;Port=3306;Database=mvp_facial;User=root;Password=sua-senha;`
 
 ## Subindo o Vision Service (Python)
 

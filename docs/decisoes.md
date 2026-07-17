@@ -292,3 +292,30 @@ Pesquisa confirmou que **o Google não oferece um serviço gerenciado equivalent
 - **+** Narrativa do "buraco do Google" vira diferencial educativo na apresentação.
 - **−** Comparativo passa de 3 para 2 motores.
 - **−** Perde-se a demonstração de um serviço cloud enterprise de biometria.
+
+---
+
+## ADR-011 — SGBD MySQL com EF Core (Pomelo) em vez de Postgres
+
+- **Status:** Aceita
+- **Data:** 2026-07-15
+
+### Contexto
+O documento original sugeria Postgres (por causa do `pgcrypto`) e Entity Framework. Em revisão, a equipe definiu usar **MySQL** (já disponível na VPS) e confirmou **EF Core** como ORM.
+
+### Decisão
+1. **SGBD:** MySQL (8.0+).
+2. **ORM:** Entity Framework Core com **Pomelo Provider** (`Pomelo.EntityFrameworkCore.MySql`).
+3. **Criptografia de embeddings** continua em **nível de aplicação** (AES-256 no C# — ADR-009), não depende de extensão do banco. MySQL oferece `AES_ENCRYPT`/`AES_DECRYPT` como camada adicional opcional, mas não substitui a camada de aplicação.
+
+### Alternativas consideradas
+1. **Postgres com pgcrypto** — descartado pela preferência/experiência da equipe com MySQL.
+2. **Prisma** — descartado: Prisma é exclusivo de Node.js/TypeScript; não há client para C# .NET. Adotar Prisma exigiria trocar o backend para Node, conflitando com o ADR-003.
+3. **Dapper (micro-ORM)** — viável para quem prefere SQL manual, mas EF Core reduz boilerplate e é o padrão do .NET.
+
+### Consequências
+- **+** Alinhado com a stack da equipe/VPS.
+- **+** EF Core + Pomelo é maturamente suportado e produtivo.
+- **+** Criptografia independe do SGBD (camada de aplicação).
+- **−** MySQL tem diferenças pequenas em tipos JSON e funções em relação ao Postgres.
+- **−** `pgcrypto` deixa de estar disponível como camada adicional (mitigado pela camada de aplicação).
