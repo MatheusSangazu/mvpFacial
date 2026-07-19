@@ -4,6 +4,52 @@ Como preparar e rodar cada serviço localmente. Tudo aqui assume Windows, Linux 
 
 > Princípio: cada serviço é **independente** e roda em seu próprio processo. Para facilidade, considere um `docker-compose` (tarefa futura).
 
+## Início rápido
+
+Depois que os [pré-requisitos globais](#pré-requisitos-globais) e os `.env` de cada serviço estiverem configurados **uma única vez**, você pode iniciar os 3 serviços com um comando só.
+
+### Git Bash (Windows) / Linux / macOS
+
+```bash
+./start-all.sh
+```
+
+### PowerShell (Windows)
+
+```powershell
+.\start-all.ps1
+```
+
+Isso abre 3 janelas separadas (uma por serviço) com tudo rodando:
+
+| Serviço         | URL                           |
+|-----------------|-------------------------------|
+| vision-service  | http://localhost:8001/docs    |
+| backend         | http://localhost:5251/health  |
+| frontend        | http://localhost:3000         |
+
+### Opções úteis
+
+```bash
+# Git Bash / Linux / macOS
+./start-all.sh --stop       # para todos os 3 serviços pelas portas
+./start-all.sh --build      # faz dotnet build antes de iniciar o backend
+./start-all.sh --help
+
+# PowerShell
+.\start-all.ps1 -Stop
+.\start-all.ps1 -Build
+.\start-all.cmd             # wrapper CMD (duplo-clique funciona)
+```
+
+### Pré-requisitos do script
+
+- Backend já buildado (`cd backend && dotnet build`) OU usar `--build`/`-Build`
+- Vision-service com venv em `vision-service/.venv/`
+- Frontend com `node_modules` instalado (`cd frontend && npm install`)
+
+O script verifica automaticamente portas livres e aborta se alguma já estiver ocupada (use `--stop` para liberar).
+
 ## Pré-requisitos globais
 
 | Ferramenta | Versão mínima | Observação |

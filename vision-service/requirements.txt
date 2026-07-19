@@ -1,11 +1,15 @@
 # Vision Service - Dependencias Python
 # Instalar com: pip install -r requirements.txt
+# Python 3.12 (última versão com installers .exe para Windows)
 
 fastapi==0.115.6
 uvicorn[standard]==0.34.0
 deepface==0.0.93
 opencv-python==4.10.0.84
-numpy==2.2.1
 python-multipart==0.0.20
 pydantic==2.10.4
 python-dotenv==1.0.1
+# NumPy: deixar o resolvedor escolher (TF 2.18 exige <2.1.0; OpenCV exige >=1.26)
+numpy>=1.26,<2.1
+# tf-keras necessario porque retinaface/deepface esperam API Keras 2 com TF 2.21+ (Keras 3)
+tf-keras>=2.21

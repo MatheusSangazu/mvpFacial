@@ -66,7 +66,7 @@ CREATE TABLE IF NOT EXISTS Vetores_Faciais (
 -- =====================================================================
 -- Tabela: Biometria_Logs
 -- Metricas de cada operacao de cadastro/login facial
--- Fonte dos dados do dashboard (ADR-008)
+-- Fonte dos dados do dashboard (ADR-008) e do Laudo Tecnico (ADR-014)
 -- =====================================================================
 CREATE TABLE IF NOT EXISTS Biometria_Logs (
   id            BIGINT AUTO_INCREMENT PRIMARY KEY,
@@ -80,7 +80,11 @@ CREATE TABLE IF NOT EXISTS Biometria_Logs (
   device        VARCHAR(20) NULL,      -- cpu | cuda | cloud
   livenessOk    BOOLEAN NULL,
   erro          VARCHAR(100) NULL,     -- codigo de erro
-  criadoEm      TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  -- Colunas do Laudo Tecnico (ADR-014): geradas pelo Motor 1 (Gemini) apos o Motor 2 decidir.
+  parecerTexto         TEXT NULL,        -- parecer forense em linguagem natural
+  parecerJson          JSON NULL,        -- estrutura completa do laudo (decisao, acao, resumo)
+  pontosAnatomicosJson JSON NULL,        -- 5 pontos anatomicos canonicos com status + observacao
+  criadoEm     TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
   INDEX idx_logs_usuario (usuarioId, criadoEm),
   INDEX idx_logs_motor (motor, criadoEm),
   CONSTRAINT fk_logs_usuario
@@ -100,6 +104,65 @@ WHERE NOT EXISTS (
 );
 
 -- =====================================================================
+-- Migracao incremental: colunas do Laudo Tecnico (ADR-014)
+-- Idempotente: so adiciona se ainda nao existirem. Rodar em base ja criada.
+-- =====================================================================
+-- Detecta se a coluna parecerTexto ja existe; se nao, aplica os 3 ALTER TABLE.
+-- MySQL 8 nao suporta IF NOT EXISTS em ADD COLUMN antes da 8.0.29; para compatibilidade
+-- ampla usamos o padrao information_schema + prepared statement.
+SET @col_exists := (
+  SELECT COUNT(*) FROM information_schema.COLUMNS
+  WHERE TABLE_SCHEMA = DATABASE()
+    AND TABLE_NAME = 'Biometria_Logs'
+    AND COLUMN_NAME = 'parecerTexto'
+);
+SET @sql := IF(@col_exists = 0,
+  'ALTER TABLE Biometria_Logs
+     ADD COLUMN parecerTexto TEXT NULL,
+     ADD COLUMN parecerJson JSON NULL,
+     ADD COLUMN pontosAnatomicosJson JSON NULL',
+  'SELECT "Laudo columns ja existem" AS msg');
+PREPARE stmt FROM @sql;
+EXECUTE stmt;
+DEALLOCATE PREPARE stmt;
+
+-- =====================================================================
+-- Migracao incremental: tabela Documentos_Cadastrados (multi-doc por usuario)
+-- =====================================================================
+CREATE TABLE IF NOT EXISTS Documentos_Cadastrados (
+  id                   BIGINT AUTO_INCREMENT PRIMARY KEY,
+  usuarioId            BIGINT NOT NULL,
+  tipoDocumento        VARCHAR(30) NOT NULL,    -- RG | CNH | Comprovante
+  nomeArquivo          VARCHAR(255) NULL,       -- somente metadata, sem binario
+  dadosExtraidosJson   JSON NOT NULL,           -- dados extraidos pela IA
+  confiancaExtracao    VARCHAR(10) NULL,        -- "0.92" como string p/ evitar cultura
+  criadoEm             TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  INDEX idx_docs_usuario (usuarioId, tipoDocumento),
+  CONSTRAINT fk_docs_usuario
+    FOREIGN KEY (usuarioId) REFERENCES Usuarios(id)
+    ON DELETE CASCADE ON UPDATE CASCADE
+) ENGINE=InnoDB;
+
+-- =====================================================================
+-- Migracao ADR-018: tabela Fotos_Referencia (1 foto cifrada por usuario, para Motor 1)
+-- Justificativa: o Motor 1 (Gemini) so consegue comparar identidade se tiver uma
+-- foto de referencia. ADR-009 veta persistir fotos brutas; ADR-018 abre excecao
+-- para a foto de referencia do Motor 1, cifrada com AES-256-GCM (mesma cifra dos vetores).
+-- =====================================================================
+CREATE TABLE IF NOT EXISTS Fotos_Referencia (
+  id                   BIGINT AUTO_INCREMENT PRIMARY KEY,
+  usuarioId            BIGINT NOT NULL,
+  conteudoCifrado      LONGBLOB NOT NULL,        -- bytes cifrados (AES-256-GCM)
+  mime                 VARCHAR(30) NULL,         -- image/jpeg | image/png | image/webp
+  origem               VARCHAR(30) NULL,         -- cadastro | atualizacao
+  criadoEm             TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  UNIQUE KEY uq_fotos_ref_usuario (usuarioId),   -- 1 foto por usuario
+  CONSTRAINT fk_fotos_ref_usuario
+    FOREIGN KEY (usuarioId) REFERENCES Usuarios(id)
+    ON DELETE CASCADE ON UPDATE CASCADE
+) ENGINE=InnoDB;
+
+-- =====================================================================
 -- Verificacao (rodar depois para confirmar)
 -- =====================================================================
 -- SHOW TABLES;
@@ -107,3 +170,4 @@ WHERE NOT EXISTS (
 -- DESCRIBE Vetores_Faciais;
 -- DESCRIBE Biometria_Logs;
 -- DESCRIBE Termos_Consentimento;
+-- DESCRIBE Documentos_Cadastrados;

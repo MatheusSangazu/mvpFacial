@@ -1,26 +1,217 @@
 @import "tailwindcss";
 
+/*
+ * Design System - MVP Facial
+ * Inspirado no prototipo do Laudo Tecnico Biomestrico: visual forense/painel,
+ * fundo escuro, acentos em ciano (#22d3ee) e ambar (#f59e0b) para destaque.
+ */
+
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
+  /* Cores base (sempre dark - painel de auditoria) */
+  --bg-base: #0a0a0f;
+  --bg-panel: #13131a;
+  --bg-elevated: #1c1c26;
+  --bg-input: #0f0f15;
+  --border-subtle: #2a2a38;
+  --border-strong: #3a3a4a;
+
+  /* Texto */
+  --fg-primary: #f4f4f5;
+  --fg-secondary: #a1a1aa;
+  --fg-muted: #71717a;
+
+  /* Acentos */
+  --accent-cyan: #22d3ee;
+  --accent-cyan-dim: #0e7490;
+  --accent-amber: #f59e0b;
+  --accent-amber-dim: #b45309;
+
+  /* Semantica */
+  --success: #10b981;
+  --success-bg: #064e3b;
+  --warning: #f59e0b;
+  --warning-bg: #451a03;
+  --danger: #ef4444;
+  --danger-bg: #450a0a;
+  --info: #3b82f6;
+  --info-bg: #172554;
 }
 
 @theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
+  --color-background: var(--bg-base);
+  --color-foreground: var(--fg-primary);
+  --color-panel: var(--bg-panel);
+  --color-elevated: var(--bg-elevated);
+  --color-input: var(--bg-input);
+  --color-border-subtle: var(--border-subtle);
+  --color-border-strong: var(--border-strong);
+  --color-muted: var(--fg-muted);
+  --color-secondary: var(--fg-secondary);
+  --color-cyan-accent: var(--accent-cyan);
+  --color-amber-accent: var(--accent-amber);
+  --color-success: var(--success);
+  --color-warning: var(--warning);
+  --color-danger: var(--danger);
   --font-sans: var(--font-geist-sans);
   --font-mono: var(--font-geist-mono);
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
+html,
+body {
+  background: var(--bg-base);
+  color: var(--fg-primary);
+  font-family: var(--font-geist-sans), system-ui, sans-serif;
+  min-height: 100vh;
 }
 
-body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+/* Font mono para números/códigos (estilo terminal forense) */
+.font-mono {
+  font-family: var(--font-geist-mono), ui-monospace, monospace;
+  font-feature-settings: "tnum";
+}
+
+/* Card base - painel */
+.card {
+  background: var(--bg-panel);
+  border: 1px solid var(--border-subtle);
+  border-radius: 8px;
+  padding: 1.25rem;
+}
+
+.card-elevated {
+  background: var(--bg-elevated);
+  border: 1px solid var(--border-strong);
+  border-radius: 8px;
+}
+
+/* Botao primario (cyan) */
+.btn-primary {
+  background: var(--accent-cyan);
+  color: #00141a;
+  font-weight: 600;
+  padding: 0.625rem 1.25rem;
+  border-radius: 6px;
+  transition: background 0.15s ease;
+}
+.btn-primary:hover:not(:disabled) {
+  background: #06b6d4;
+}
+.btn-primary:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+/* Botao secundario (ghost) */
+.btn-secondary {
+  background: transparent;
+  color: var(--fg-primary);
+  border: 1px solid var(--border-strong);
+  padding: 0.625rem 1.25rem;
+  border-radius: 6px;
+  transition: border-color 0.15s ease, background 0.15s ease;
+}
+.btn-secondary:hover:not(:disabled) {
+  border-color: var(--accent-cyan);
+  background: rgba(34, 211, 238, 0.05);
+}
+
+/* Botao destrutivo */
+.btn-danger {
+  background: var(--danger-bg);
+  color: var(--danger);
+  border: 1px solid var(--danger);
+  padding: 0.625rem 1.25rem;
+  border-radius: 6px;
+  font-weight: 500;
+}
+.btn-danger:hover:not(:disabled) {
+  background: rgba(239, 68, 68, 0.15);
+}
+
+/* Inputs */
+.input,
+.textarea,
+.select {
+  background: var(--bg-input);
+  border: 1px solid var(--border-subtle);
+  color: var(--fg-primary);
+  padding: 0.625rem 0.875rem;
+  border-radius: 6px;
+  width: 100%;
+  outline: none;
+  transition: border-color 0.15s ease;
+}
+.input:focus,
+.textarea:focus,
+.select:focus {
+  border-color: var(--accent-cyan);
+}
+
+/* Badge de status */
+.badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.375rem;
+  padding: 0.25rem 0.625rem;
+  border-radius: 4px;
+  font-size: 0.75rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  border: 1px solid;
+}
+.badge-success {
+  color: var(--success);
+  background: var(--success-bg);
+  border-color: var(--success);
+}
+.badge-warning {
+  color: var(--warning);
+  background: var(--warning-bg);
+  border-color: var(--warning);
+}
+.badge-danger {
+  color: var(--danger);
+  background: var(--danger-bg);
+  border-color: var(--danger);
+}
+.badge-info {
+  color: var(--info);
+  background: var(--info-bg);
+  border-color: var(--info);
+}
+.badge-muted {
+  color: var(--fg-muted);
+  background: var(--bg-elevated);
+  border-color: var(--border-subtle);
+}
+
+/* Animacao sutil de carregamento */
+@keyframes pulse-cyan {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.4;
+  }
+}
+.animate-pulse-cyan {
+  animation: pulse-cyan 2s ease-in-out infinite;
+}
+
+/* Scrollbar dark */
+::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+::-webkit-scrollbar-track {
+  background: var(--bg-base);
+}
+::-webkit-scrollbar-thumb {
+  background: var(--border-strong);
+  border-radius: 5px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: var(--fg-muted);
 }

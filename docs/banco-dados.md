@@ -8,36 +8,71 @@ Banco relacional **MySQL 8.0+** hospedado em VPS. Vetores faciais ficam em tabel
 
 ## Diagrama de relacionamento (DER)
 
-```text
-┌─────────────────┐       ┌─────────────────────┐
-│    Usuarios     │ 1───* │   Vetores_Faciais   │
-│─────────────────│       │─────────────────────│
-│ id (PK)         │◀──────│ id (PK)             │
-│ nome            │       │ usuarioId (FK)      │
-│ cpf (unico)     │       │ embedding (JSON)    │
-│ dadosDocumento  │       │ pose (frente|esq|dir)│
-│ consentimento   │       │ criadoEm            │
-│ criadoEm        │       └─────────────────────┘
-│ atualizadoEm    │
-└────────┬────────┘
-         │ 1
-         │
-         │ *
-┌────────▼────────────────┐       ┌─────────────────────┐
-│     Biometria_Logs      │       │   Termos_Consentim.  │
-│─────────────────────────│       │─────────────────────│
-│ id (PK)                 │       │ id (PK)             │
-│ usuarioId (FK, anulavel)│       │ versao (unica)      │
-│ operacao (cad|login)    │       │ texto               │
-│ motor (1|2|nulo)        │       │ ativo               │
-│ autenticado (bool)      │       └─────────────────────┘
-│ score, limiar           │
-│ latenciaMs              │
-│ device (cpu|cuda|cloud) │
-│ livenessOk              │
-│ erro (texto)            │
-│ criadoEm                │
-└─────────────────────────┘
+```mermaid
+erDiagram
+    Termos_Consentimento ||--o{ Usuarios : "versao"
+    Usuarios ||--o{ Vetores_Faciais : "usuarioId"
+    Usuarios ||--o{ Biometria_Logs : "usuarioId"
+    Usuarios ||--o{ Documentos_Cadastrados : "usuarioId"
+
+    Termos_Consentimento {
+        BIGINT id PK
+        VARCHAR versao "único"
+        TEXT texto
+        BOOLEAN ativo
+        TIMESTAMP criadoEm
+    }
+
+    Usuarios {
+        BIGINT id PK
+        VARCHAR nome
+        VARCHAR cpf "único, validado"
+        DATE dataNascimento
+        VARCHAR nomeMae
+        JSON dadosDocumento
+        VARCHAR tipoDocumento
+        BOOLEAN consentimentoAceito
+        VARCHAR termoVersao "FK"
+        TIMESTAMP criadoEm
+        TIMESTAMP atualizadoEm
+    }
+
+    Vetores_Faciais {
+        BIGINT id PK
+        BIGINT usuarioId FK
+        LONGTEXT embedding "AES-256-GCM"
+        VARCHAR pose "frente/esq/dir"
+        VARCHAR modelo "Facenet"
+        TIMESTAMP criadoEm
+    }
+
+    Biometria_Logs {
+        BIGINT id PK
+        BIGINT usuarioId FK "anulável"
+        VARCHAR operacao "cadastro/login"
+        TINYINT motor "1 ou 2"
+        BOOLEAN autenticado
+        DOUBLE score
+        DOUBLE limiar
+        INT latenciaMs
+        VARCHAR device "cpu/cuda"
+        BOOLEAN livenessOk
+        VARCHAR erro
+        TEXT parecerTexto "Laudo ADR-014"
+        JSON parecerJson "Laudo ADR-014"
+        JSON pontosAnatomicosJson "Laudo ADR-014"
+        TIMESTAMP criadoEm
+    }
+
+    Documentos_Cadastrados {
+        BIGINT id PK
+        BIGINT usuarioId FK
+        VARCHAR tipoDocumento "RG/CNH/Comprovante"
+        VARCHAR nomeArquivo "anulável"
+        JSON dadosExtraidosJson "estrutura extraída pela IA"
+        VARCHAR confiancaExtracao "formato 0.92"
+        TIMESTAMP criadoEm
+    }
 ```
 
 ## Tabelas
@@ -71,7 +106,7 @@ Uma linha por embedding (3 por usuário no cadastro). **Não** armazenar média 
 | `criadoEm` | timestamptz | |
 
 ### `Biometria_Logs`
-Fonte das métricas de demonstração. `usuarioId` anulável para tentativas anônimas.
+Fonte das métricas de demonstração. `usuarioId` anulável para tentativas anônimas. Também é a fonte do Laudo Técnico (ADR-014).
 
 | Coluna | Tipo | Notas |
 |---|---|---|
@@ -86,6 +121,22 @@ Fonte das métricas de demonstração. `usuarioId` anulável para tentativas an�
 | `device` | varchar | `cpu` / `cuda` / `cloud` |
 | `livenessOk` | bool | |
 | `erro` | varchar, anulável | código de erro se houve |
+| `parecerTexto` | TEXT, anulável | Laudo ADR-014 — parecer forense em linguagem natural (gerado pelo Motor 1) |
+| `parecerJson` | JSON, anulável | Laudo ADR-014 — `{decisao, acaoRecomendada, similaridadePct, resumo, livenessAuditoria}` |
+| `pontosAnatomicosJson` | JSON, anulável | Laudo ADR-014 — array com 5 pontos canônicos: `{item, status, observacao}` |
+| `criadoEm` | timestamptz | |
+
+### `Documentos_Cadastrados`
+Armazena os documentos cadastrados pelo usuário e os dados extraídos via IA.
+
+| Coluna | Tipo | Notas |
+|---|---|---|
+| `id` | bigserial PK | |
+| `usuarioId` | bigint FK → Usuarios | ON DELETE CASCADE |
+| `tipoDocumento` | varchar | RG / CNH / Comprovante |
+| `nomeArquivo` | varchar, anulável | |
+| `dadosExtraidosJson` | JSON | estrutura extraída pela IA |
+| `confiancaExtracao` | varchar | formato 0.92 |
 | `criadoEm` | timestamptz | |
 
 ### `Termos_Consentimento`
@@ -103,6 +154,7 @@ Histórico versionado dos termos exibidos no cadastro.
 - `Usuarios(cpf)` único.
 - `Vetores_Faciais(usuarioId)` — leitura por usuário no login.
 - `Biometria_Logs(usuarioId, criadoEm)` e `Biometria_Logs(motor, criadoEm)` — relatórios de métricas.
+- `Documentos_Cadastrados(usuarioId, tipoDocumento)` — consulta de documentos por usuário/tipo.
 
 ## Considerações de segurança
 
