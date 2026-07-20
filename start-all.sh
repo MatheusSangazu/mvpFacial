@@ -11,7 +11,7 @@
 # Servicos:
 #   1. vision-service  (Python/FastAPI) -> http://localhost:8001
 #   2. backend         (.NET 9)         -> http://localhost:5251
-#   3. frontend        (Next.js)        -> http://localhost:3000
+#   3. frontend        (Next.js)        -> http://localhost:3001
 # ====================================================================
 
 set -euo pipefail
@@ -198,7 +198,7 @@ if [[ "$ACTION" == "stop" ]]; then
     print_title "Parando servicos mvpFacial"
     kill_by_port 8001 "vision-service"
     kill_by_port 5251 "backend"
-    kill_by_port 3000 "frontend"
+    kill_by_port 3001 "frontend"
     echo ""
     echo -e "${C_GREEN}Concluido. Todos os servicos foram parados.${C_RESET}"
     exit 0
@@ -209,7 +209,7 @@ print_title "mvpFacial - Iniciando 3 servicos"
 
 # Verifica portas ocupadas
 PORTAS_OCUPADAS=()
-for p in 8001 5251 3000; do
+for p in 8001 5251 3001; do
     if port_in_use "$p"; then
         PORTAS_OCUPADAS+=("$p")
     fi
@@ -268,7 +268,7 @@ open_new_window "mvpFacial - backend" "$BACKEND_DIR" "$BACKEND_CMD"
 print_ok "backend iniciando"
 
 # --- 3. Frontend ---
-print_title "3/3  Frontend (Next.js) -> :3000"
+print_title "3/3  Frontend (Next.js) -> :3001"
 FRONTEND_DIR="$SCRIPT_DIR/frontend"
 FRONTEND_CMD="npm run dev"
 open_new_window "mvpFacial - frontend" "$FRONTEND_DIR" "$FRONTEND_CMD"
@@ -281,7 +281,7 @@ echo -e "  ${C_CYAN}Servico          URL                           Janela${C_RES
 echo "  ---------------  ----------------------------  ----------------------------"
 echo "  vision-service   http://localhost:8001/docs    mvpFacial - vision-service"
 echo "  backend          http://localhost:5251/health  mvpFacial - backend"
-echo "  frontend         http://localhost:3000         mvpFacial - frontend"
+echo "  frontend         http://localhost:3001         mvpFacial - frontend"
 echo ""
 echo -e "  ${C_GRAY}Aguarde ~5-10s para os servicos subirem.${C_RESET}"
 echo -e "  ${C_YELLOW}Para parar tudo: ./start-all.sh --stop${C_RESET}"

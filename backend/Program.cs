@@ -68,7 +68,7 @@ builder.Services.AddAuthorization();
 
 // CORS - permite o frontend Next.js
 var corsOrigins = builder.Configuration["CORS_ORIGINS"]
-    ?? "http://localhost:3000";
+    ?? "http://localhost:3001";
 builder.Services.AddCors(options =>
 {
     options.AddDefaultPolicy(policy =>

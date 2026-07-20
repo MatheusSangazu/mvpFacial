@@ -6,7 +6,7 @@
 # Servicos:
 #   1. vision-service  (Python/FastAPI) -> http://localhost:8001
 #   2. backend         (.NET 9)         -> http://localhost:5251
-#   3. frontend        (Next.js)        -> http://localhost:3000
+#   3. frontend        (Next.js)        -> http://localhost:3001
 #
 # Cada servico abre numa janela propria do Windows Terminal (ou console).
 # Fechar a janela derruba o servico correspondente.
@@ -65,7 +65,7 @@ if ($Stop) {
     Write-Title "Parando servicos mvpFacial"
     Stop-ByPort 8001 "vision-service"
     Stop-ByPort 5251 "backend"
-    Stop-ByPort 3000 "frontend"
+    Stop-ByPort 3001 "frontend"
     Write-Host ""
     Write-Host "Concluido. Todos os servicos foram parados." -ForegroundColor Green
     exit 0
@@ -76,7 +76,7 @@ if ($Stop) {
 Write-Title "mvpFacial - Iniciando 3 servicos"
 
 # Verifica portas ocupadas
-foreach ($p in @(8001, 5251, 3000)) {
+foreach ($p in @(8001, 5251, 3001)) {
     if (Test-Port $p) {
         Write-Host ""
         Write-Host "Porta $p ocupada. Use:" -ForegroundColor Red
@@ -120,7 +120,7 @@ $backendCmd = "`$env:ASPNETCORE_URLS='http://localhost:5251'; `$env:ASPNETCORE_E
 Start-NewWindow "mvpFacial - backend" $backendCmd $backendDir
 
 # --- 3. Frontend ---
-Write-Title "3/3  Frontend (Next.js) -> :3000"
+Write-Title "3/3  Frontend (Next.js) -> :3001"
 $frontendDir = Join-Path $ProjectRoot "frontend"
 $frontendCmd = "npm run dev"
 Start-NewWindow "mvpFacial - frontend" $frontendCmd $frontendDir
@@ -132,7 +132,7 @@ Write-Host "  Servico          URL                           Janela" -Foreground
 Write-Host "  ---------------  ----------------------------  ----------------------------"
 Write-Host "  vision-service   http://localhost:8001/docs    mvpFacial - vision-service"
 Write-Host "  backend          http://localhost:5251/health  mvpFacial - backend"
-Write-Host "  frontend         http://localhost:3000         mvpFacial - frontend"
+Write-Host "  frontend         http://localhost:3001         mvpFacial - frontend"
 Write-Host ""
 Write-Host "Aguarde ~5-10s para os servicos subirem." -ForegroundColor DarkGray
 Write-Host "Para parar tudo: .\start-all.ps1 -Stop" -ForegroundColor Yellow
