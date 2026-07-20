@@ -89,3 +89,52 @@ Reabrir o debate se:
 - Latência agregada virar problema real (considerar paralelismo no Map com `Task.WhenAll`).
 - Surgir modelo de visão com janela de atenção suficiente para consolidar de primeira (reverter para single-call).
 - Migramos para DocumentAI do Google ou similar (eliminar o Gemini da extração).
+
+---
+
+## ADR-021 — Deploy em Containers no Coolify via docker-compose
+
+**Status:** Proposta (2026-07-20).
+
+### Contexto
+A apresentação do MVP para executivos exige um ambiente público (HTTPS, domínio) na VPS onde o Coolify já está instalado. O time já mantém um MySQL externo em outro projeto Coolify (reaproveitável). Subir manualmente cada serviço (frontend, backend, vision-service) via SSH a cada demo é frágil e lento. Precisamos de um processo reprodutível e versionado.
+
+### Decisão
+Empacotar os 3 serviços em **Docker** e orquestrá-los com um único **`docker-compose.yml`** deployado no Coolify:
+
+1. **Dockerfile por serviço** (`frontend/`, `backend/`, `vision-service/`), builds multi-estágio.
+2. **`docker-compose.yml`** na raiz com 3 serviços + rede interna `mvpnet`.
+3. **MySQL externo**: NÃO incluído no compose. A connection string é injetada via `${DATABASE_URL}` (Coolify env vars).
+4. **Variáveis sensíveis** injetadas pelo painel do Coolify, jamais commitadas (`.env.example` documenta o template).
+5. **`vision-service`** sem exposição pública — só o backend o acessa via DNS interno (`http://vision-service:8001`).
+6. **Frontend** com `output: "standalone"` no Next.js para imagem final ~150MB.
+7. **Backend** roda em modo `Production` (`ASPNETCORE_ENVIRONMENT=Production`); `appsettings.Development.json` é ignorado pelo Docker (`.dockerignore`).
+
+### Alternativas consideradas
+- **3 resources separados no Coolify** (um compose por serviço): descartado pelaComplexidade de operação (3 deploys, 3 redes para plugar) sem benefício claro para MVP.
+- **Incluir MySQL no compose**: descartado porque o MySQL já existe em outro projeto Coolify; duplicar implicaria migrar dados e manter 2 instâncias.
+- **Deploy direto via `dotnet run` / `npm start` na VPS (sem Docker)**: descartado — exige configurar runtime, Node, Python, libs de sistema manualmente na VPS e quebra a reprodutibilidade.
+- **Kubernetes**: descartado por overhead operacional absurdo para um MVP de 3 containers.
+
+### Consequências
+- **+** Deploy reprodutível versionado no git: qualquer dev sobe o mesmo ambiente com `docker compose up`.
+- **+** Isolamento total: cada serviço em seu container, dependências de sistema não conflitam.
+- **+** Coolify cuida de TLS (Let's Encrypt), proxy reverso, restart automático, logs centralizados.
+- **−** Imagem do vision-service é grande (~2GB por TensorFlow + DeepFace + Facenet). Primeiro build lento (~10min), pull em novo node demora.
+- **−** Latência de rede entre containers (vs. localhost): irrelevante para MVP, mas medir em `Biometria_Logs`.
+- **−** Injeção de env vars exige configuração manual no painel Coolify em cada novo ambiente.
+
+### Implementação
+- `docker-compose.yml` (raiz) com `services.{frontend,backend,vision-service}` + `networks.mvpnet`.
+- `frontend/Dockerfile` (Node 20-alpine, multi-estagio standalone).
+- `backend/Dockerfile` (SDK 9.0 build, aspnet:9.0 runtime, uid 1654).
+- `vision-service/Dockerfile` (python:3.11-slim + libgl1 + ffmpeg + DeepFace).
+- `.dockerignore` por serviço (exclui `bin/`, `obj/`, `node_modules/`, `.next/`, `.env*`, `appsettings.Development.json`).
+- `.env.example` (raiz) documentando todas as variáveis esperadas pelo compose.
+- `frontend/next.config.ts` atualizado com `output: "standalone"`.
+
+### Revisão futura
+Reabrir o debate se:
+- Latência entre containers virar gargalo (considerar shared volume socket ou processo único).
+- Quiser escalar horizontalmente (separar em recursos Coolify independentes com rede compartilhada).
+- Migrar para GPU (adicionar `deploy.resources.reservations.devices` para CUDA no `vision-service`).

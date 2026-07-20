@@ -26,7 +26,7 @@ Isso abre 3 janelas separadas (uma por serviço) com tudo rodando:
 |-----------------|-------------------------------|
 | vision-service  | http://localhost:8001/docs    |
 | backend         | http://localhost:5251/health  |
-| frontend        | http://localhost:3000         |
+| frontend        | http://localhost:3001         |
 
 ### Opções úteis
 
@@ -68,7 +68,7 @@ Cada serviço tem seu `.env` (não versionar). Exemplos abaixo.
 
 ### `frontend/.env.local`
 ```bash
-NEXT_PUBLIC_API_URL=http://localhost:5000   # URL do backend C#
+NEXT_PUBLIC_API_URL=http://localhost:5251   # URL do backend C#
 ```
 
 ### `backend/.env`
@@ -81,12 +81,12 @@ GEMINI_API_KEY=...
 GEMINI_MODEL=gemini-2.0-flash
 
 # Vision service
-VISION_SERVICE_URL=http://localhost:8000
+VISION_SERVICE_URL=http://localhost:8001
 VISION_SERVICE_TOKEN=...
 
 # Segurança
 JWT_SECRET=...
-CORS_ORIGINS=http://localhost:3000
+CORS_ORIGINS=http://localhost:3001
 ```
 
 ### `vision-service/.env`
@@ -103,7 +103,7 @@ DEEPFACE_HOME=/app/.deepface
 cd frontend
 npm install
 npm run dev
-# abre em http://localhost:3000
+# abre em http://localhost:3001
 ```
 
 Permissões necessárias no navegador: **câmera** (e microfone se capturar vídeo). Use `https://` ou `localhost` (navegadores bloqueiam câmera em http não-localhost).
@@ -125,7 +125,7 @@ dotnet ef database update
 
 # 3. Rodar o backend
 dotnet run
-# escuta em http://localhost:5000
+# escuta em http://localhost:5251
 ```
 
 > **String de conexão MySQL** (em `appsettings.Development.json` ou variável):
@@ -142,8 +142,8 @@ python -m venv .venv
 source .venv/bin/activate
 
 pip install -r requirements.txt
-uvicorn main:app --reload --port 8000
-# escuta em http://localhost:8000
+uvicorn main:app --reload --port 8001
+# escuta em http://localhost:8001
 ```
 
 > No **primeiro run**, o DeepFace baixa pesos dos modelos (centenas de MB). Pode demorar.
@@ -163,9 +163,9 @@ uvicorn main:app --reload --port 8000
 ## Verificação rápida (healthchecks)
 
 Após subir tudo, validar:
-- `GET http://localhost:8000/health` → `{"status":"ok"}`
-- `GET http://localhost:5000/health` → `{"status":"ok"}`
-- `http://localhost:3000` carrega a home
+- `GET http://localhost:8001/health` → `{"status":"ok"}`
+- `GET http://localhost:5251/health` → `{"status":"ok"}`
+- `GET http://localhost:3001` carrega a home
 
 ## Problemas comuns
 
@@ -176,3 +176,50 @@ Após subir tudo, validar:
 | Backend 500 ao chamar Gemini | `GEMINI_API_KEY` inválida ou cota esgotada |
 | Login facial Motor 2 muito lento | Rodando em CPU; ativar GPU ou reduzir resolução da imagem |
 | CORS no frontend | `CORS_ORIGINS` do backend não inclui a origem do Next.js |
+
+## Deploy na VPS via Coolify (ADR-021)
+
+Os 3 serviços (frontend, backend, vision-service) são empacotados em Docker e orquestrados pelo [`docker-compose.yml`](../docker-compose.yml) na raiz. O MySQL é **externo** (já existe em outro projeto Coolify) — a connection string entra como variável de ambiente.
+
+### Passo a passo no painel Coolify
+
+1. **New Resource → Docker Compose Empty** (ou conectar o repo Git do projeto).
+2. O Coolify detecta o `docker-compose.yml` automaticamente. Os 3 serviços aparecem na árvore.
+3. Em **Environment Variables** (do resource pai), preencher conforme [.env.example](../.env.example):
+   - `DATABASE_URL` — connection string do MySQL externo (descobrir o hostname interno no Coolify; costuma ser `<nome-do-resource>.coolify-network` ou o IP do container).
+   - `JWT_SECRET` — gerar com `openssl rand -hex 48`.
+   - `AES_EMBEDDING_KEY` — gerar com `openssl rand -base64 32`.
+   - `GEMINI_API_KEY` — sua chave do Google AI Studio.
+   - `INTERNAL_TOKEN` — gerar com `openssl rand -hex 32` (mesmo valor será usado nos 2 lados automaticamente).
+   - `CORS_ORIGINS` — URL pública do frontend (definida no passo 4).
+   - `NEXT_PUBLIC_API_URL` — URL pública do backend (definida no passo 4).
+   - `DEVICE=cpu` (ou `cuda` se a VPS tiver GPU).
+4. Em cada serviço, definir o **domínio público** (no painel do serviço, campo "Domains"):
+   - `frontend`: ex.: `https://mvp.seudominio.com`
+   - `backend`: ex.: `https://mvp-api.seudominio.com`
+   - `vision-service`: **nenhum** — fica só na rede interna (não exponha).
+5. **Deploy**. O primeiro build do `vision-service` baixa ~2GB de modelos TF/DeepFace e pode levar ~10min. Os outros são rápidos.
+6. Após subir, validar:
+   - `https://mvp.seudominio.com` carrega a home.
+   - `https://mvp-api.seudominio.com/health` → `{"status":"ok"}`.
+
+### Portas internas (sem conflito com host)
+
+| Serviço         | Porta exposta no container |
+|-----------------|----------------------------|
+| frontend        | 3000                       |
+| backend         | 5251                       |
+| vision-service  | 8001 (só rede interna)     |
+
+> O Coolify injeta automaticamente a rede de proxy reverso e emite Let's Encrypt. Você não precisa gerenciar certificados manualmente.
+
+### Descobrir o hostname do MySQL externo
+
+Se o MySQL roda em outro projeto Coolify na mesma VPS:
+1. Abra o resource do MySQL no painel.
+2. Veja o campo **Connection String** ou o nome do container (`coolify-db-xxxx`).
+3. Use esse hostname na variável `DATABASE_URL`. Alternativamente, use o IP interno do container (`172.x.x.x`) ou o nome do serviço na rede `coolify-network`.
+
+### Atualizar uma versão nova
+
+Após push para o branch monitorado pelo Coolify, ele rebuilda automaticamente. Para forçar redeploy manual: botão **Redeploy** no painel do resource.

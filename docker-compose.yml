@@ -1,0 +1,71 @@
+# docker-compose.yml - Orquestra os 3 servicos do mvpFacial para Coolify.
+# ADR-020: deploy em containers. MySQL e EXTERNO (ja existe em outro projeto
+# Coolify) - injetamos a connection string via ${DATABASE_URL}.
+#
+# Como usar no Coolify:
+#   1. New Resource > Docker Compose Empty > colar este arquivo (ou apontar pro repo)
+#   2. Em "Environment Variables", preencher conforme .env.example
+#   3. Em cada servico, definir o dominio publico (ex.: mvp.seudominio.com)
+#   4. Deploy
+#
+# Portas internas (nao conflitam com host):
+#   frontend        3000
+#   backend         5251
+#   vision-service  8001  (apenas rede interna, nao exposto)
+
+services:
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    environment:
+      - NODE_ENV=production
+      - NEXT_PUBLIC_API_URL=${NEXT_PUBLIC_API_URL}
+    networks:
+      - mvpnet
+    depends_on:
+      - backend
+
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    environment:
+      - ASPNETCORE_ENVIRONMENT=Production
+      - ASPNETCORE_URLS=http://+:5251
+      # MySQL externo (Coolify / VPS)
+      - ConnectionStrings__Default=${DATABASE_URL}
+      # Segredes
+      - Jwt__Secret=${JWT_SECRET}
+      - AES_EMBEDDING_KEY=${AES_EMBEDDING_KEY}
+      # Integracao interna com vision-service (nome DNS do compose)
+      - VisionService__Url=http://vision-service:8001
+      - VisionService__Token=${INTERNAL_TOKEN}
+      # Gemini (multi-key opcional via Gemini__ApiKeys__0, __1, ...)
+      - Gemini__ApiKey=${GEMINI_API_KEY:-}
+      - Gemini__ApiKeys__0=${GEMINI_API_KEY_2:-}
+      - Gemini__ApiKeys__1=${GEMINI_API_KEY_3:-}
+      # CORS - URL publica do frontend
+      - CORS_ORIGINS=${CORS_ORIGINS}
+    networks:
+      - mvpnet
+    depends_on:
+      - vision-service
+
+  vision-service:
+    build:
+      context: ./vision-service
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    environment:
+      - INTERNAL_TOKEN=${INTERNAL_TOKEN}
+      - DEVICE=${DEVICE:-cpu}
+    # Nao expoe porta para fora - so o backend o acessa via rede interna.
+    networks:
+      - mvpnet
+
+networks:
+  mvpnet:
+    driver: bridge

@@ -1,0 +1,11 @@
+bin
+obj
+.git
+.gitignore
+.env
+*.env
+appsettings.Development.json
+appsettings.*.Development.json
+secrets.json
+*.user
+teste.jpg

@@ -1,0 +1,12 @@
+# .dockerignore global (raiz do repo)
+.git
+.gitignore
+*.md
+docs/
+scripts/
+.env
+.env.*
+*.env
+*.log
+Thumbs.db
+.DS_Store
