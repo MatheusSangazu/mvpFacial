@@ -736,11 +736,12 @@ function StepBiometria({
       );
     } catch (e: any) {
       // Rollback atomicidade: se o usuario foi criado mas a biometria falhou,
-      // exclui o usuario para nao deixar CPF "fantasma" (LGPD + UX).
+      // exclui a propria conta recem-criada para nao deixar CPF "fantasma" (LGPD + UX).
+      // Usa api.excluirConta() (DELETE /api/auth/usuario) com o JWT recem-emitido.
       if (usuarioCriadoId !== null) {
         setEnviandoMsg("Revertendo cadastro (biometria falhou)...");
         try {
-          await api.excluirUsuario(usuarioCriadoId);
+          await api.excluirConta();
         } catch {
           // nao tem muito o que fazer se o rollback tambem falhar
         }

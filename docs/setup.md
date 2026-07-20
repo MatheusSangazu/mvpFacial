@@ -191,6 +191,7 @@ Os 3 serviços (frontend, backend, vision-service) são empacotados em Docker e 
    - `AES_EMBEDDING_KEY` — gerar com `openssl rand -base64 32`.
    - `GEMINI_API_KEY` — sua chave do Google AI Studio.
    - `INTERNAL_TOKEN` — gerar com `openssl rand -hex 32` (mesmo valor será usado nos 2 lados automaticamente).
+   - `ADMIN_PASSWORD_HASH` — SHA-256 hex da senha admin (RECOMENDADO). Gerar com: `echo -n "sua-senha" | openssl dgst -sha256 | awk '{print $2}'`. Alternativamente `ADMIN_PASSWORD` em texto plano (só dev).
    - `CORS_ORIGINS` — URL pública do frontend (definida no passo 4).
    - `NEXT_PUBLIC_API_URL` — URL pública do backend (definida no passo 4).
    - `DEVICE=cpu` (ou `cuda` se a VPS tiver GPU).

@@ -1,15 +1,20 @@
 "use client";
 
-// Pagina /admin - painel administrativo do MVP.
+// Pagina /admin - painel administrativo do MVP (ADR-022: protegido por JWT role=admin).
 // Lista usuarios cadastrados, permite buscar, ver detalhes e excluir (LGPD).
 // Mostra tambem metricas gerais (total de contas, vetores, logs) e ultimos logs de auditoria.
 //
-// AVISO: este painel e um MVP sem autenticacao. O backend expe os endpoints
-// /api/admin/* com [AllowAnonymous] apenas para a demo local (AdminController).
+// Fluxo de autenticacao:
+//   1. Ao abrir /admin, verifica se ha adminToken valido (GET /api/admin/me).
+//   2. Se sim, mostra o painel.
+//   3. Se nao, mostra form de senha. POST /api/admin/login -> guarda JWT em
+//      localStorage (chave mvpfacial.adminToken).
+//   4. Botao "Sair" limpa o token e volta pro form.
 import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
 import {
-  api,
+  adminApi,
+  ApiError,
   type ListarUsuariosResponse,
   type DetalhesUsuarioResponse,
   type ListarLogsResponse,
@@ -34,13 +39,20 @@ export default function AdminPage() {
   const [exclusao, setExclusao] = useState<ExcluirUsuarioResponse | null>(null);
   const [confirmando, setConfirmando] = useState<number | null>(null);
 
+  // --- Gate de autenticacao admin (ADR-022) ---
+  const [autenticado, setAutenticado] = useState<boolean | null>(null); // null = validando
+
+  useEffect(() => {
+    adminApi.validar().then(setAutenticado);
+  }, []);
+
   const carregar = useCallback(async () => {
     setCarregando(true);
     setErro("");
     try {
       const [u, l] = await Promise.all([
-        api.listarUsuarios(busca || undefined, 100),
-        api.listarLogs(50),
+        adminApi.listarUsuarios(busca || undefined, 100),
+        adminApi.listarLogs(50),
       ]);
       setDados(u);
       setLogsData(l);
@@ -52,14 +64,14 @@ export default function AdminPage() {
   }, [busca]);
 
   useEffect(() => {
-    carregar();
-  }, [carregar]);
+    if (autenticado) carregar();
+  }, [autenticado, carregar]);
 
   async function verDetalhes(id: number) {
     setCarregando(true);
     setErro("");
     try {
-      const d = await api.obterUsuario(id);
+      const d = await adminApi.obterUsuario(id);
       setDetalhe(d);
     } catch (e: any) {
       setErro(e?.message ?? "Falha ao carregar detalhes.");
@@ -74,7 +86,7 @@ export default function AdminPage() {
     setConfirmando(id);
     setErro("");
     try {
-      const r = await api.excluirUsuario(id);
+      const r = await adminApi.excluirUsuario(id);
       setExclusao(r);
       setConfirmando(null);
       await carregar();
@@ -84,18 +96,46 @@ export default function AdminPage() {
     }
   }
 
+  if (autenticado === null) {
+    // Validando sessao admin...
+    return (
+      <div className="max-w-md mx-auto px-6 py-20 text-center">
+        <div className="text-sm text-[var(--fg-muted)]">
+          Verificando sessão administrativa...
+        </div>
+      </div>
+    );
+  }
+
+  if (!autenticado) {
+    return <TelaLoginAdmin onSucesso={() => setAutenticado(true)} />;
+  }
+
   return (
     <div className="max-w-6xl mx-auto px-6 py-8">
       <header className="mb-6 flex items-end justify-between flex-wrap gap-3">
         <div>
           <h1 className="text-2xl font-bold">Painel administrativo</h1>
           <p className="text-sm text-[var(--fg-secondary)] mt-1">
-            MVP · sem autenticação (use apenas em ambiente local).
+            MVP · sessão admin ativa (expira em 8h).
           </p>
         </div>
-        <button onClick={carregar} className="btn-secondary" disabled={carregando}>
-          {carregando ? "Atualizando..." : "↻ Atualizar"}
-        </button>
+        <div className="flex gap-2">
+          <button onClick={carregar} className="btn-secondary" disabled={carregando}>
+            {carregando ? "Atualizando..." : "↻ Atualizar"}
+          </button>
+          <button
+            onClick={async () => {
+              await adminApi.logout();
+              setAutenticado(false);
+              setDados(null);
+              setLogsData(null);
+            }}
+            className="btn-secondary text-[var(--danger)]"
+          >
+            Sair
+          </button>
+        </div>
       </header>
 
       {/* Metricas gerais */}
@@ -611,6 +651,85 @@ function ModalDetalhe({
               Remove vetores faciais, documentos e anonimiza logs (mantém métricas agregadas).
             </p>
           </section>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// --- Tela de login admin (ADR-022) ---
+
+function TelaLoginAdmin({ onSucesso }: { onSucesso: () => void }) {
+  const [senha, setSenha] = useState("");
+  const [enviando, setEnviando] = useState(false);
+  const [erro, setErro] = useState("");
+
+  async function enviar(e: React.FormEvent) {
+    e.preventDefault();
+    if (!senha.trim()) return;
+    setEnviando(true);
+    setErro("");
+    try {
+      await adminApi.login(senha);
+      onSucesso();
+    } catch (e: any) {
+      if (e instanceof ApiError && e.status === 401) {
+        setErro("Senha incorreta.");
+      } else if (e instanceof ApiError && e.codigo === "ADMIN_NAO_CONFIGURADO") {
+        setErro("Servidor sem senha admin configurada. Defina ADMIN_PASSWORD no backend.");
+      } else {
+        setErro(e?.message ?? "Falha ao autenticar.");
+      }
+    } finally {
+      setEnviando(false);
+    }
+  }
+
+  return (
+    <div className="max-w-md mx-auto px-6 py-16">
+      <div className="card p-6">
+        <h1 className="text-xl font-bold mb-2">Acesso administrativo</h1>
+        <p className="text-sm text-[var(--fg-secondary)] mb-6">
+          Digite a senha admin para visualizar dados sensíveis (LGPD).
+        </p>
+
+        <form onSubmit={enviar} className="space-y-4">
+          <div>
+            <label className="block text-xs uppercase tracking-wider text-[var(--fg-muted)] mb-1">
+              Senha
+            </label>
+            <input
+              type="password"
+              autoFocus
+              autoComplete="current-password"
+              className="input"
+              value={senha}
+              onChange={(e) => setSenha(e.target.value)}
+              disabled={enviando}
+              placeholder="••••••••••••"
+            />
+          </div>
+
+          {erro && (
+            <div className="text-sm text-[var(--danger)] bg-[var(--danger-bg)] border border-[var(--danger)] rounded px-3 py-2">
+              {erro}
+            </div>
+          )}
+
+          <button
+            type="submit"
+            className="btn-primary w-full"
+            disabled={enviando || !senha.trim()}
+          >
+            {enviando ? "Entrando..." : "Entrar"}
+          </button>
+        </form>
+
+        <div className="mt-6 text-xs text-[var(--fg-muted)] text-center">
+          Sessão expira em 8 horas.{" "}
+          <Link href="/" className="hover:text-[var(--fg-primary)]">
+            ← Voltar ao início
+          </Link>
         </div>
       </div>
     </div>

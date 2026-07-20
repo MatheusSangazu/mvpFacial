@@ -297,9 +297,27 @@ Endpoints dos dois serviços HTTP. Tudo em JSON. Imagens enviadas como `multipar
 - Resposta `200`: laudo completo (igual ao GET, mais `metricasMotor1` com `similaridadeGemini`, `confianca`, `livenessClassificacao`).
 - Erros: `404 LOG_NAO_ENCONTRADO | 400 REFERENCIA_AUSENTE | 400 ATUAL_AUSENTE | 503 GEMINI_NAO_CONFIGURADO | 502 MOTOR1_FALHOU`.
 
-### Admin — painel interno (MVP)
+### Admin — painel interno (protegido por JWT role=admin — ADR-022)
 
-> Controller `[AllowAnonymous]` para o MVP (demo local). Em produção deve ser protegido por role `admin` ou API key forte (ADR futuro). Útil para o painel `/admin` auditar usuários, documentos e logs sem autenticação em ambiente de desenvolvimento.
+> Todos os endpoints abaixo (exceto `/login`) exigem header `Authorization: Bearer <token admin>` obtido via `POST /api/admin/login`. Token válido por 8h. Configurar senha via env `ADMIN_PASSWORD_HASH` (SHA-256 hex, recomendado) ou `ADMIN_PASSWORD` (texto, dev). Sem senha configurada → `500 ADMIN_NAO_CONFIGURADO`.
+
+#### Login admin
+`POST /api/admin/login`  *(sem auth)*
+- Body:
+```json
+{ "senha": "string" }
+```
+- Resposta `200`:
+```json
+{ "token": "eyJhbGci...", "expiraEmHoras": 8, "papel": "admin" }
+```
+- Erros: `400 SENHA_OBRIGATORIA | 401 SENHA_INVALIDA | 500 ADMIN_NAO_CONFIGURADO`.
+- Comparação em tempo constante (anti timing attack). Falhas são logadas com IP.
+
+#### Validar sessão admin
+`GET /api/admin/me`
+- Resposta `200`: `{ "papel": "admin", "sub": "admin", "expiraEm": 8 }`
+- Erros: `401` (token ausente / inválido / expirado / sem role admin).
 
 #### Listar usuários com métricas agregadas
 `GET /api/admin/usuarios?q=&limit=`

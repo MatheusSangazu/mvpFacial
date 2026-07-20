@@ -1,12 +1,16 @@
 // AdminController - Endpoints administrativos do MVP ( Painel /admin ).
-// GET    /api/admin/usuarios           - lista usuarios com metricas agregadas.
-// GET    /api/admin/usuarios/{id}      - detalhes de um usuario (com documentos).
-// DELETE /api/admin/usuarios/{id}      - exclui usuario (LGPD direito ao esquecimento).
-// GET    /api/admin/logs               - ultimos logs biometricos (auditoria).
+// POST   /api/admin/login            - autentica com senha admin e devolve JWT.
+// GET    /api/admin/me               - valida token admin (401 se invalido/expirado).
+// GET    /api/admin/usuarios         - lista usuarios com metricas agregadas.
+// GET    /api/admin/usuarios/{id}    - detalhes de um usuario (com documentos).
+// DELETE /api/admin/usuarios/{id}    - exclui usuario (LGPD direito ao esquecimento).
+// GET    /api/admin/logs             - ultimos logs biometricos (auditoria).
 //
-// AVISO: este controller esta SEM autenticacao para o MVP (demo local).
-// Em producao, deve ser protegido por role "admin" / API key forte (ver ADR futuro).
+// ADR-022: todos os endpoints (exceto /login) exigem JWT com claim role=admin.
+using System.Security.Cryptography;
+using System.Text;
 using backend.Data;
+using backend.Services;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
@@ -15,11 +19,78 @@ namespace backend.Controllers;
 
 [ApiController]
 [Route("api/admin")]
-[AllowAnonymous]  // MVP: aberto para demo local. TODO: proteger em producao.
-public class AdminController(AppDbContext db) : ControllerBase
+public class AdminController(AppDbContext db, JwtService jwt, IConfiguration config, ILogger<AdminController> logger) : ControllerBase
 {
+    /// <summary>
+    /// POST /api/admin/login - valida senha admin e devolve JWT 8h (ADR-022).
+    /// Senha aceita de 2 formas (precedencia: hash > texto):
+    ///   - ADMIN_PASSWORD_HASH (SHA-256 hex) - recomendado em producao.
+    ///   - ADMIN_PASSWORD (texto plano) - aceitavel para demo local/dev.
+    /// Comparacao em tempo constante para evitar timing attacks.
+    /// </summary>
+    [HttpPost("login")]
+    [AllowAnonymous]
+    public IActionResult Login([FromBody] AdminLoginRequest req)
+    {
+        if (string.IsNullOrWhiteSpace(req?.Senha))
+            return BadRequest(new { erro = "SENHA_OBRIGATORIA", mensagem = "Informe a senha." });
+
+        var senha = req.Senha.Trim();
+
+        // 1. Hash configurado (prioridade)
+        var hashEsperado = config["ADMIN_PASSWORD_HASH"]
+            ?? config["Admin:SenhaHash"];
+        if (!string.IsNullOrWhiteSpace(hashEsperado))
+        {
+            var hashFornecido = Sha256Hex(senha);
+            if (!CryptographicEquals(hashFornecido, hashEsperado.Trim().ToLowerInvariant()))
+            {
+                LogFalha();
+                return Unauthorized(new { erro = "SENHA_INVALIDA", mensagem = "Senha incorreta." });
+            }
+        }
+        else
+        {
+            // 2. Texto plano (fallback para dev)
+            var senhaTexto = config["ADMIN_PASSWORD"] ?? config["Admin:Senha"];
+            if (string.IsNullOrWhiteSpace(senhaTexto))
+            {
+                logger.LogError("ADMIN_PASSWORD_HASH e ADMIN_PASSWORD ambos ausentes. Admin bloqueado.");
+                return StatusCode(500, new { erro = "ADMIN_NAO_CONFIGURADO", mensagem = "Servidor sem senha admin configurada." });
+            }
+            if (!CryptographicEquals(senha, senhaTexto.Trim()))
+            {
+                LogFalha();
+                return Unauthorized(new { erro = "SENHA_INVALIDA", mensagem = "Senha incorreta." });
+            }
+        }
+
+        var token = jwt.GerarAdmin();
+        logger.LogInformation("Login admin bem-sucedido de {Ip}", HttpContext.Connection.RemoteIpAddress);
+        return Ok(new
+        {
+            token,
+            expiraEmHoras = jwt.ExpiracaoHoras,
+            papel = "admin"
+        });
+    }
+
+    /// <summary>GET /api/admin/me - valida token admin (qualquer chamada admin exige role).</summary>
+    [HttpGet("me")]
+    [Authorize(Roles = "admin")]
+    public IActionResult Me()
+    {
+        return Ok(new
+        {
+            papel = "admin",
+            sub = User.FindFirst("sub")?.Value ?? "admin",
+            expiraEm = jwt.ExpiracaoHoras
+        });
+    }
+
     /// <summary>Lista usuarios cadastrados com metricas agregadas (vetores, docs, ultimo log).</summary>
     [HttpGet("usuarios")]
+    [Authorize(Roles = "admin")]
     public async Task<IActionResult> ListarUsuarios(
         [FromQuery] string? q = null,
         [FromQuery] int limit = 100,
@@ -177,6 +248,7 @@ public class AdminController(AppDbContext db) : ControllerBase
 
     /// <summary>Lista os ultimos logs biometricos (todos os usuarios) para auditoria.</summary>
     [HttpGet("logs")]
+    [Authorize(Roles = "admin")]
     public async Task<IActionResult> ListarLogs(
         [FromQuery] int limit = 50,
         [FromQuery] string? operacao = null,
@@ -215,4 +287,32 @@ public class AdminController(AppDbContext db) : ControllerBase
             logs
         });
     }
+
+    // --- Helpers de criptografia / log ---
+
+    private static string Sha256Hex(string texto)
+    {
+        var bytes = SHA256.HashData(Encoding.UTF8.GetBytes(texto));
+        return Convert.ToHexString(bytes).ToLowerInvariant();
+    }
+
+    /// <summary>Comparacao em tempo constante (mitiga timing attack sobre a senha).</summary>
+    private static bool CryptographicEquals(string a, string b)
+    {
+        var ba = Encoding.UTF8.GetBytes(a ?? "");
+        var bb = Encoding.UTF8.GetBytes(b ?? "");
+        return CryptographicOperations.FixedTimeEquals(ba, bb);
+    }
+
+    private void LogFalha()
+    {
+        var ip = HttpContext.Connection.RemoteIpAddress;
+        logger.LogWarning("Tentativa de login admin falhou. IP={Ip}", ip);
+    }
+}
+
+/// <summary>Payload do POST /api/admin/login.</summary>
+public class AdminLoginRequest
+{
+    public string? Senha { get; set; }
 }

@@ -3,6 +3,7 @@
 
 const API_BASE = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:5251";
 const TOKEN_KEY = "mvpfacial.token";
+const ADMIN_TOKEN_KEY = "mvpfacial.adminToken";
 
 export function getToken(): string | null {
   if (typeof window === "undefined") return null;
@@ -13,6 +14,19 @@ export function setToken(token: string | null) {
   if (typeof window === "undefined") return;
   if (token) window.localStorage.setItem(TOKEN_KEY, token);
   else window.localStorage.removeItem(TOKEN_KEY);
+}
+
+// ADR-022: token admin fica em chave separada para nao conflitar com token de
+// usuario comum e permitir logout independente.
+export function getAdminToken(): string | null {
+  if (typeof window === "undefined") return null;
+  return window.localStorage.getItem(ADMIN_TOKEN_KEY);
+}
+
+export function setAdminToken(token: string | null) {
+  if (typeof window === "undefined") return;
+  if (token) window.localStorage.setItem(ADMIN_TOKEN_KEY, token);
+  else window.localStorage.removeItem(ADMIN_TOKEN_KEY);
 }
 
 // Erro canônico: { erro: "CODIGO", mensagem: "..." } ou cai num fallback
@@ -70,6 +84,34 @@ function safeJson(text: string): any {
   } catch {
     return null;
   }
+}
+
+// Wrapper para chamadas admin (ADR-022): injeta token admin em vez do token de
+// usuario. Se 401, limpa o token admin para forcar re-login.
+async function requestAdmin<T>(path: string, init?: RequestInit): Promise<T> {
+  const headers = new Headers(init?.headers);
+  const adminToken = getAdminToken();
+  if (adminToken) headers.set("Authorization", `Bearer ${adminToken}`);
+  headers.set("Accept", "application/json");
+
+  const resp = await fetch(`${API_BASE}${path}`, { ...init, headers });
+
+  if (resp.status === 401) {
+    // Token invalido/expirado: limpa para a UI voltar pro login.
+    setAdminToken(null);
+    throw new ApiError("ADMIN_NAO_AUTENTICADO", "Sessão admin expirada.", 401);
+  }
+
+  const text = await resp.text();
+  const data = text ? safeJson(text) : null;
+
+  if (!resp.ok) {
+    const codigo = data?.erro ?? `HTTP_${resp.status}`;
+    const mensagem = data?.mensagem ?? data?.detail ?? resp.statusText;
+    throw new ApiError(codigo, mensagem, resp.status, data);
+  }
+
+  return data as T;
 }
 
 // --- Tipos canônicos (alinhados com docs/api.md) ---
@@ -510,36 +552,64 @@ export const api = {
       body: form,
     });
   },
+};
 
-  // Admin (painel /admin - MVP sem auth, ver ADR quando producao)
-  async listarUsuarios(
-    q?: string,
-    limit = 100,
-  ): Promise<ListarUsuariosResponse> {
+// --- Admin (painel /admin - protegido por JWT role=admin, ADR-022) ---
+
+export interface AdminLoginResponse {
+  token: string;
+  expiraEmHoras: number;
+  papel: "admin";
+}
+
+async function loginAdmin(senha: string): Promise<AdminLoginResponse> {
+  const resp = await request<AdminLoginResponse>("/api/admin/login", {
+    method: "POST",
+    body: JSON.stringify({ senha }),
+    auth: false,
+  });
+  setAdminToken(resp.token);
+  return resp;
+}
+
+async function validarTokenAdmin(): Promise<boolean> {
+  if (!getAdminToken()) return false;
+  try {
+    await requestAdmin<{ papel: string }>("/api/admin/me");
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+async function logoutAdmin(): Promise<void> {
+  setAdminToken(null);
+}
+
+export const adminApi = {
+  login: loginAdmin,
+  validar: validarTokenAdmin,
+  logout: logoutAdmin,
+
+  async listarUsuarios(q?: string, limit = 100): Promise<ListarUsuariosResponse> {
     const params = new URLSearchParams();
     if (q) params.set("q", q);
     params.set("limit", String(limit));
-    return request(`/api/admin/usuarios?${params.toString()}`, { auth: false });
+    return requestAdmin(`/api/admin/usuarios?${params.toString()}`);
   },
 
   async obterUsuario(id: number): Promise<DetalhesUsuarioResponse> {
-    return request(`/api/admin/usuarios/${id}`, { auth: false });
+    return requestAdmin(`/api/admin/usuarios/${id}`);
   },
 
   async excluirUsuario(id: number): Promise<ExcluirUsuarioResponse> {
-    return request(`/api/admin/usuarios/${id}`, {
-      method: "DELETE",
-      auth: false,
-    });
+    return requestAdmin(`/api/admin/usuarios/${id}`, { method: "DELETE" });
   },
 
-  async listarLogs(
-    limit = 50,
-    operacao?: string,
-  ): Promise<ListarLogsResponse> {
+  async listarLogs(limit = 50, operacao?: string): Promise<ListarLogsResponse> {
     const params = new URLSearchParams();
     params.set("limit", String(limit));
     if (operacao) params.set("operacao", operacao);
-    return request(`/api/admin/logs?${params.toString()}`, { auth: false });
+    return requestAdmin(`/api/admin/logs?${params.toString()}`);
   },
 };

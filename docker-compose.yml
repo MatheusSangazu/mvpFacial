@@ -49,6 +49,10 @@ services:
       - Gemini__ApiKeys__1=${GEMINI_API_KEY_3:-}
       # CORS - URL publica do frontend
       - CORS_ORIGINS=${CORS_ORIGINS}
+      # Admin (ADR-022): hash SHA-256 da senha preferencialmente.
+      # Se omitido, cai para ADMIN_PASSWORD (texto plano - so para dev).
+      - ADMIN_PASSWORD_HASH=${ADMIN_PASSWORD_HASH:-}
+      - ADMIN_PASSWORD=${ADMIN_PASSWORD:-}
     networks:
       - mvpnet
     depends_on:

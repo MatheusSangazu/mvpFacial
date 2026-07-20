@@ -23,25 +23,43 @@ public class JwtService
         _expiracaoHoras = int.TryParse(config["Jwt:ExpiracaoHoras"], out var h) ? h : 8;
     }
 
-    /// <summary>Gera um JWT com claims sub (usuarioId), cpf e nome.</summary>
+    /// <summary>Gera um JWT de usuario comum (cadastro/login facial).</summary>
     public string Gerar(long usuarioId, string cpf, string nome)
     {
-        var claims = new[]
-        {
+        return GerarComClaims(
+            expires: DateTime.UtcNow.AddHours(_expiracaoHoras),
             new Claim(JwtRegisteredClaimNames.Sub, usuarioId.ToString()),
             new Claim("cpf", cpf),
             new Claim("nome", nome),
-            new Claim(JwtRegisteredClaimNames.Jti, Guid.NewGuid().ToString())
-        };
+            new Claim("role", "usuario"));
+    }
 
+    /// <summary>
+    /// Gera um JWT para o painel administrativo (ADR-022).
+    /// Sessao curta (8h) com claim role=admin. Nao carrega dados de CPF/nome
+    /// de usuarios para evitar vazamento caso o token seja comprometido.
+    /// </summary>
+    public string GerarAdmin(TimeSpan? validade = null)
+    {
+        var expires = DateTime.UtcNow.Add(validade ?? TimeSpan.FromHours(_expiracaoHoras));
+        return GerarComClaims(
+            expires,
+            new Claim(JwtRegisteredClaimNames.Sub, "admin"),
+            new Claim("role", "admin"),
+            new Claim(JwtRegisteredClaimNames.Jti, Guid.NewGuid().ToString()));
+    }
+
+    private string GerarComClaims(DateTime expires, params Claim[] claims)
+    {
         var creds = new SigningCredentials(_chave, SecurityAlgorithms.HmacSha256);
         var token = new JwtSecurityToken(
             issuer: "mvp-facial",
             audience: "mvp-facial",
             claims: claims,
-            expires: DateTime.UtcNow.AddHours(_expiracaoHoras),
+            expires: expires,
             signingCredentials: creds);
-
         return new JwtSecurityTokenHandler().WriteToken(token);
     }
+
+    public int ExpiracaoHoras => _expiracaoHoras;
 }

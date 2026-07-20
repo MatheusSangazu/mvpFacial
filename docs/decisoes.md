@@ -138,3 +138,69 @@ Reabrir o debate se:
 - Latência entre containers virar gargalo (considerar shared volume socket ou processo único).
 - Quiser escalar horizontalmente (separar em recursos Coolify independentes com rede compartilhada).
 - Migrar para GPU (adicionar `deploy.resources.reservations.devices` para CUDA no `vision-service`).
+
+---
+
+## ADR-022 — Proteção do Painel /admin por Senha + JWT role=admin
+
+**Status:** Aceita (2026-07-20).
+
+### Contexto
+O `AdminController` exponha endpoints sensíveis (listar usuários com CPF, ver documentos extraídos, excluir contas — LGPD direito ao esquecimento). Estava com `[AllowAnonymous]` (TODO antigo no próprio código) apenas para acelerar a demo local. Com o deploy público no Coolify (ADR-021), qualquer pessoa com a URL conseguiria ver dados biométricos e PII — inaceitável sob LGPD e arriscado para a demo.
+
+### Decisão
+Proteger o `/admin` com **senha única + JWT curto (8h) com claim `role=admin`**:
+
+1. **POST `/api/admin/login`** com body `{ senha }` → valida e devolve `{ token, expiraEmHoras, papel }`.
+2. Demais endpoints `/api/admin/*` trocam `[AllowAnonymous]` por **`[Authorize(Roles = "admin")]`**.
+3. JWT gerado por `JwtService.GerarAdmin()` — sem dados de usuários nas claims (apenas `sub=admin`, `role=admin`), para minimizar vazamento se o token for comprometido.
+4. **Validade: 8h** (alinhada com uma jornada de demonstração). Após expirar, frontend força re-login.
+5. Frontend guarda o token em `localStorage` chave **`mvpfacial.adminToken`** (separada do token de usuário comum).
+6. Wrapper `requestAdmin()` no `api.ts` detecta 401 e limpa o token automaticamente, forçando o gate de login.
+
+### Configuração da senha (2 modos, precedência: hash > texto)
+- **`ADMIN_PASSWORD_HASH`** — SHA-256 hex (recomendado em produção):
+  ```bash
+  echo -n "sua-senha-secreta" | openssl dgst -sha256 | awk '{print $2}'
+  ```
+- **`ADMIN_PASSWORD`** — texto plano (fallback para dev local).
+
+Comparação em **tempo constante** (`CryptographicOperations.FixedTimeEquals`) para mitigar timing attacks. Falhas logam o IP de origem.
+
+### Alternativas consideradas
+- **API Key estática no header**: mais simples, mas UX menos elegante (colar string longa). Além disso, sem timeout natural.
+- **HTTP Basic Auth**: popup nativo do browser feio, sem logout limpo. Descartado.
+- **Login completo com usuário no banco (tabela `Admin_Usuarios`)**: seria a solução "correta" para múltiplos admins, mas adiciona migration, hash bcrypt, etc. Excesso para MVP com 1 admin. Reservado para versão 2.
+- **OAuth/SAML/SSO**: completamente fora do escopo do MVP.
+- **Manter aberto com proteção só por IP no Coolify**: frágil (IPs mudam, dentro da mesma rede qualquer um acessa). Descartado.
+
+### Consequências
+- **+** Dados sensíveis (CPF, vetores, logs) protegidos mesmo com deploy público.
+- **+** Trilha de auditoria: toda tentativa de login (sucesso/falha) é logada com IP.
+- **+** Timeout automático de 8h evita sessões infinitas.
+- **+** Logout explícito via botão "Sair" no header.
+- **−** Exige configurar `ADMIN_PASSWORD_HASH` no Coolify antes do primeiro deploy.
+- **−** Se o `Jwt:Secret` vazar, um atacante pode forjar token admin (mitigado por `Jwt:Secret` de 64+ chars e rotacionável).
+- **−** Sem revogação ativa de tokens (para MVP, esperar expirar é aceitável; em produção, adicionar blacklist ou refresh tokens).
+
+### Implementação
+- `backend/Services/JwtService.cs`: adicionado `GerarAdmin(TimeSpan?)` + refactor `GerarComClaims()` privado.
+- `backend/Controllers/AdminController.cs`:
+  - `POST /api/admin/login` (`[AllowAnonymous]`): valida senha, emite JWT.
+  - `GET /api/admin/me` (`[Authorize(Roles="admin")]`): valida token ativo.
+  - Todos endpoints `/api/admin/usuarios*` e `/api/admin/logs` com `[Authorize(Roles="admin")]`.
+  - Helpers `Sha256Hex`, `CryptographicEquals` (constant-time), `LogFalha`.
+- `frontend/src/lib/api.ts`:
+  - `getAdminToken` / `setAdminToken` (storage separado).
+  - `requestAdmin()` wrapper com detecção de 401.
+  - `adminApi` namespace com `login`, `validar`, `logout`, `listarUsuarios`, `obterUsuario`, `excluirUsuario`, `listarLogs`.
+- `frontend/src/app/admin/page.tsx`: gate de login (`TelaLoginAdmin`) + botão Sair + validação inicial via `/api/admin/me`.
+- `frontend/src/app/cadastro/page.tsx`: rollback passou a usar `api.excluirConta()` (JWT do próprio usuário) em vez do endpoint admin.
+- `docker-compose.yml` + `.env.example` + `appsettings.Development.json`: adicionadas `ADMIN_PASSWORD` e `ADMIN_PASSWORD_HASH`.
+
+### Revisão futura
+Reabrir o debate se:
+- Quiser múltiplos administradores (migrar para tabela `Admin_Usuarios` com senha bcrypt + roles granulares).
+- Quiser revogação imediata (adicionar blacklist de `jti` em Redis ou similar).
+- Quiser 2FA (TOTP) para o painel admin.
+- Quiser auditoria persistente de login (tabela `Admin_Logins` em vez de só log de console).
