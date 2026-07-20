@@ -84,21 +84,29 @@ public class DocumentosController(GeminiService gemini) : ControllerBase
         }
 
         var falhas = ValidacaoDocumentoService.ValidarCamada1(doc);
+        var bloqueantes = ValidacaoDocumentoService.ApenasBloqueantes(falhas);
 
         Response.Headers["X-Extracao-Confianca"] = doc.Confianca?.ToString("0.00") ?? "null";
         Response.Headers["X-Extracao-Imagens"] = lista.Count.ToString();
 
-        // Mesmo com falhas de validacao, devolve o documento extraido para o frontend
-        // mostrar os dados parciais e o X nos campos faltantes (UX ADR-020).
-        if (falhas.Count > 0)
+        // Devolve o documento + falhas (informativas + bloqueantes).
+        // Se houver bloqueantes, retorna 422 pro frontend mostrar o X.
+        // Se so houver opcionais, retorna 200 + avisos (frontend mostra X mas libera continuar).
+        if (bloqueantes.Count > 0)
             return UnprocessableEntity(new
             {
                 erro = "VALIDACAO_CAMADA1",
                 documento = doc,
                 falhas,
+                bloqueantes,
                 imagensEnviadas = lista.Count
             });
 
-        return Ok(doc);
+        return Ok(new
+        {
+            documento = doc,
+            avisos = falhas,  // pode ser vazio
+            imagensEnviadas = lista.Count
+        });
     }
 }

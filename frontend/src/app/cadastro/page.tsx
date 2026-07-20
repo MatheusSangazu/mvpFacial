@@ -541,13 +541,27 @@ function StepComprovante({
         <button onClick={onAnterior} className="btn-secondary">
           ← Voltar
         </button>
-        <button 
-          onClick={onProximo} 
-          className="btn-primary"
-          disabled={!comprovante || erro !== ""}
-        >
-          Continuar para biometria →
-        </button>
+        <div className="flex gap-2">
+          {/* Comprovante opcional (2026-07-20): permite pular direto pra biometria */}
+          <button
+            onClick={() => {
+              setComprovante(null);
+              onProximo();
+            }}
+            className="btn-secondary"
+            disabled={enviando}
+            title="Pular etapa de comprovante de residência"
+          >
+            Pular (opcional) →
+          </button>
+          <button
+            onClick={onProximo}
+            className="btn-primary"
+            disabled={!comprovante || erro !== "" || enviando}
+          >
+            Continuar para biometria →
+          </button>
+        </div>
       </div>
     </div>
   );

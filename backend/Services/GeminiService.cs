@@ -38,6 +38,11 @@ public class GeminiService
         Voce e um extrator FORENSE de documentos de IDENTIDADE brasileiros (RG ou CNH).
         Sua unica saida deve ser JSON valido, sem markdown, sem texto adicional.
 
+        IMPORTANTE: voce pode receber 1 ou mais imagens do mesmo documento (frente, verso, etc).
+        Considere TODAS as imagens enviadas como partes do MESMO documento e consolide os dados
+        em um UNICO JSON final. Se um campo aparecer em varias imagens, use o valor mais legivel.
+        Se o verso tiver dados complementares (numero, orgao emissor, CPF), inclua.
+
         REGRAS OBRIGATORIAS:
         1. Extraia APENAS dados visiveis no documento.
         2. NUNCA invente ou complete campos faltantes. Se nao estiver legivel ou nao se aplicar, use null.
@@ -149,63 +154,23 @@ public class GeminiService
         if (lista.Count == 0)
             throw new InvalidOperationException("Nenhuma imagem fornecida para extracao.");
 
-        // Se for apenas uma imagem, extrai diretamente.
-        if (lista.Count == 1)
-        {
-            return await ExecutarComRetryAsync(prompt, lista, ct);
-        }
+        // ADR-022+: single-call. Envia TODAS as imagens em uma unica chamada Gemini.
+        // Antes usavamos Map-Reduce (1 chamada por imagem + 1 consolidacao), mas isso
+        // multiplicava o tempo de resposta (3 chamadas sequenciais = ~53s para 2 fotos).
+        // Com single-call: 1 chamada apenas = ~25-30s independente do numero de fotos.
+        // O Gemini consegue analisar frente+verso juntas sem recency bias quando o prompt
+        // e explicito sobre o schema esperado.
+        _logger.LogInformation("Extraindo documento com {N} imagem(ns) em chamada unica...", lista.Count);
+        var doc = await ExecutarComRetryAsync(prompt, lista, ct);
 
-        // Abordagem Map-Reduce (ADR-020): Extrai cada imagem separadamente e depois consolida.
-        var extraidos = new List<DocumentoExtraido>();
-        for (int i = 0; i < lista.Count; i++)
-        {
-            _logger.LogInformation("Extraindo imagem {Indice} de {Total}...", i + 1, lista.Count);
-            var doc = await ExecutarComRetryAsync(prompt, new List<(string, string)> { lista[i] }, ct);
-            extraidos.Add(doc);
-            
-            // LOG DE DIAGNÓSTICO: mostra o que cada imagem extraiu isoladamente.
-            // Se cada uma isolada trouxer dados corretos, confirma a tese de recency bias
-            // quando se envia as duas juntas.
-            _logger.LogInformation(
-                "DIAGNÓSTICO Map - Imagem {Indice}/{Total}: nome={Nome} cpf={Cpf} rgNumero={Rg} nomeMae={Mae}",
-                i + 1, lista.Count,
-                doc.Nome ?? "(null)",
-                doc.Cpf ?? "(null)",
-                doc.RgNumero ?? "(null)",
-                doc.NomeMae ?? "(null)");
-        }
-
-        _logger.LogInformation("Consolidando {Total} JSONs extraidos...", extraidos.Count);
-        
-        var jsonOpts = new JsonSerializerOptions { WriteIndented = true };
-        var jsonLista = JsonSerializer.Serialize(extraidos, jsonOpts);
-        _logger.LogDebug("JSONs individuais para consolidação:\n{Json}", jsonLista);
-        string promptConsolidacao = $@"{prompt}
-
-IMPORTANTE: Você está na fase de CONSOLIDAÇÃO. 
-Abaixo estão os dados extraídos individualmente de {lista.Count} partes do mesmo documento (ex: frente e verso).
-Seu trabalho é mesclar todos esses objetos em um ÚNICO JSON FINAL.
-
-Regras de consolidação:
-1. Se um campo for nulo ou vazio em um, mas tiver valor no outro, adote o valor.
-2. Se houver divergência de valores no mesmo campo, adote a informação mais completa (ex: prefira o nome completo ao invés de abreviado).
-3. Preserve a estrutura exata do schema.
-4. Retorne APENAS o JSON consolidado.
-
-Dados extraídos individualmente:
-{jsonLista}";
-
-        // Chama sem enviar imagens, apenas o texto com os JSONs para o Gemini consolidar (Reduce).
-        var consolidado = await ExecutarComRetryAsync(promptConsolidacao, new List<(string b64, string mime)>(), ct);
-        
         _logger.LogInformation(
-            "DIAGNÓSTICO Reduce - JSON final: nome={Nome} cpf={Cpf} rgNumero={Rg} nomeMae={Mae}",
-            consolidado.Nome ?? "(null)",
-            consolidado.Cpf ?? "(null)",
-            consolidado.RgNumero ?? "(null)",
-            consolidado.NomeMae ?? "(null)");
-        
-        return consolidado;
+            "DIAGNOSTICO single-call - nome={Nome} cpf={Cpf} rgNumero={Rg} nomeMae={Mae}",
+            doc.Nome ?? "(null)",
+            doc.Cpf ?? "(null)",
+            doc.RgNumero ?? "(null)",
+            doc.NomeMae ?? "(null)");
+
+        return doc;
     }
 
     private async Task<DocumentoExtraido> ExecutarComRetryAsync(string prompt, List<(string b64, string mime)> imagens, CancellationToken ct)

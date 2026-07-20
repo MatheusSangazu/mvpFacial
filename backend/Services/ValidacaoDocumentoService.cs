@@ -26,13 +26,13 @@ public static class ValidacaoDocumentoService
 
     private static void ValidarIdentidade(DocumentoExtraido doc, List<FalhaValidacao> falhas)
     {
-        // Nome: obrigatorio, sem digitos
+        // CAMPOS OBRIGATORIOS (bloqueiam): nome + cpf + data nascimento.
+        // Esses sao suficientes para identificar unicamente uma pessoa (ADR-006).
         if (string.IsNullOrWhiteSpace(doc.Nome))
             falhas.Add(new("NOME_AUSENTE", "nome nao extraido."));
         else if (doc.Nome.Any(char.IsDigit))
             falhas.Add(new("NOME_INVALIDO", "nome contem digitos."));
 
-        // CPF: digitos verificadores
         if (!ValidacaoCpfService.Validar(doc.Cpf))
             falhas.Add(new("CPF_INVALIDO", $"cpf invalido ou ausente (valor extraido: '{doc.Cpf}')."));
 
@@ -41,24 +41,38 @@ public static class ValidacaoDocumentoService
         ValidarData(doc.RgDataEmissao, "rgDataEmissao", falhas);
         ValidarData(doc.CnhValidade, "cnhValidade", falhas);
 
-        // RG deve ter orgao emissor + UF
+        // CAMPOS OPCIONAIS (nao bloqueiam mais - mudanca 2026-07-20).
+        // RG/CNH podem ter dados no verso, mas se a IA extraiu nome+CPF+data na frente,
+        // isso ja basta para identificar. Os campos abaixo viram WARNINGS apenas.
+        // Frontend mostra o que faltou, mas nao bloqueia o cadastro.
         if (doc.TipoDocumento == "RG")
         {
             if (string.IsNullOrWhiteSpace(doc.RgNumero))
-                falhas.Add(new("RG_NUMERO_AUSENTE", "rgNumero ausente."));
+                falhas.Add(new("RG_NUMERO_OPCIONAL", "rgNumero ausente (geralmente no verso)."));
             if (string.IsNullOrWhiteSpace(doc.RgOrgaoEmissor))
-                falhas.Add(new("RG_EMISSOR_AUSENTE", "rgOrgaoEmissor ausente."));
+                falhas.Add(new("RG_EMISSOR_OPCIONAL", "rgOrgaoEmissor ausente (geralmente no verso)."));
         }
 
-        // CNH deve ter numero + categoria
         if (doc.TipoDocumento == "CNH")
         {
             if (string.IsNullOrWhiteSpace(doc.CnhNumero))
-                falhas.Add(new("CNH_NUMERO_AUSENTE", "cnhNumero ausente."));
+                falhas.Add(new("CNH_NUMERO_OPCIONAL", "cnhNumero ausente (geralmente no verso)."));
             if (string.IsNullOrWhiteSpace(doc.CnhCategoria))
-                falhas.Add(new("CNH_CATEGORIA_AUSENTE", "cnhCategoria ausente."));
+                falhas.Add(new("CNH_CATEGORIA_OPCIONAL", "cnhCategoria ausente."));
         }
     }
+
+    /// <summary>
+    /// Filtra apenas as falhas BLOQUEANTES (que impedem o cadastro).
+    /// Falhas marcadas como _OPCIONAL sao apenas informativas.
+    /// Mudanca 2026-07-20: RG/CNH frente+verso deixou de ser obrigatorio se nome+cpf+data
+    /// foram extraidos. Permite passar com 1 foto se a IA pegar tudo essencial.
+    /// </summary>
+    public static List<FalhaValidacao> ApenasBloqueantes(List<FalhaValidacao> todas) =>
+        todas.Where(f => !f.Codigo.EndsWith("_OPCIONAL")).ToList();
+
+    /// <summary>True se a validacao passou (ignorando warnings opcionais).</summary>
+    public static bool Passou(List<FalhaValidacao> todas) => ApenasBloqueantes(todas).Count == 0;
 
     private static void ValidarComprovante(DocumentoExtraido doc, List<FalhaValidacao> falhas)
     {

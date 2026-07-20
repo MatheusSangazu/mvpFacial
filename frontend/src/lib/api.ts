@@ -441,11 +441,14 @@ export const api = {
   ): Promise<DocumentoExtraido> {
     const form = new FormData();
     imagens.forEach((f) => form.append("imagens", f));
-    return request("/api/documentos/extrair-identidade", {
+    const r = await request<any>("/api/documentos/extrair-identidade", {
       method: "POST",
       body: form,
       auth: false,
     });
+    // ADR-022+: backend devolve { documento, avisos, imagensEnviadas }.
+    // Para tras-compatibilidade, se vier direto o doc (versao antiga), usa direto.
+    return r?.documento ?? r;
   },
 
   async extrairComprovante(
@@ -453,11 +456,12 @@ export const api = {
   ): Promise<DocumentoExtraido> {
     const form = new FormData();
     imagens.forEach((f) => form.append("imagens", f));
-    return request("/api/documentos/extrair-comprovante", {
+    const r = await request<any>("/api/documentos/extrair-comprovante", {
       method: "POST",
       body: form,
       auth: false,
     });
+    return r?.documento ?? r;
   },
 
   // Legado (generico) - mantido por compatibilidade
