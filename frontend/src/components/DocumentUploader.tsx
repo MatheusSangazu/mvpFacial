@@ -12,14 +12,14 @@ interface Props {
   accept?: string;
 }
 
-const ACCEPTED = ["image/jpeg", "image/png", "image/webp", "application/pdf"];
+const ACCEPTED = ["image/jpeg", "image/png", "image/webp"];
 
 export default function DocumentUploader({
   arquivos,
   onAdd,
   onRemove,
   max = 5,
-  accept = "image/jpeg,image/png,image/webp,application/pdf",
+  accept = "image/jpeg,image/png,image/webp",
 }: Props) {
   const inputRef = useRef<HTMLInputElement>(null);
   const [dragOver, setDragOver] = useState(false);
@@ -90,7 +90,7 @@ export default function DocumentUploader({
           ou arraste os arquivos aqui
         </p>
         <p className="text-xs text-[var(--fg-muted)] mt-1">
-          JPG, PNG, WebP ou PDF · até 10 MB · máx {max}
+          JPG, PNG ou WebP · até 10 MB · máx {max}
         </p>
         <input
           ref={inputRef}

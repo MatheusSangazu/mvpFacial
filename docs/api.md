@@ -81,6 +81,11 @@ Endpoints dos dois serviços HTTP. Tudo em JSON. Imagens enviadas como `multipar
 #### Extrair documento de identidade (RG ou CNH)
 `POST /api/documentos/extrair-identidade`
 - Body: `multipart/form-data` com campo `imagens` (`List<IFormFile>`, 1 a 5 arquivos, JPEG/PNG/WebP/HEIC/HEIF, máx 10 MB cada).
+- **Múltiplas imagens (ADR-020 Map-Reduce):** quando o cliente envia 2+ imagens (ex.: frente e verso do RG), o backend não junta tudo numa única chamada do Gemini — em vez disso, aplica a estratégia Map-Reduce:
+  1. **Map:** extrai um JSON de cada imagem isoladamente (1 chamada por imagem). Cada chamada tem contexto reduzido, evitando perda de atenção.
+  2. **Reduce:** uma chamada textual final (sem imagens) consolida todos os JSONs em um único resultado.
+  - Custo: ~N+1 chamadas ao Gemini. Latência proporcional. Robustez muito maior para RG frente/verso (CPF, rgNumero e filiação normalmente estão no verso).
+  - Para 1 imagem, faz extração direta (sem overhead).
 - Resposta `200` — `DocumentoExtraido` com campos de identidade:
 ```json
 {

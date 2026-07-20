@@ -162,11 +162,24 @@ public class GeminiService
             _logger.LogInformation("Extraindo imagem {Indice} de {Total}...", i + 1, lista.Count);
             var doc = await ExecutarComRetryAsync(prompt, new List<(string, string)> { lista[i] }, ct);
             extraidos.Add(doc);
+            
+            // LOG DE DIAGNÓSTICO: mostra o que cada imagem extraiu isoladamente.
+            // Se cada uma isolada trouxer dados corretos, confirma a tese de recency bias
+            // quando se envia as duas juntas.
+            _logger.LogInformation(
+                "DIAGNÓSTICO Map - Imagem {Indice}/{Total}: nome={Nome} cpf={Cpf} rgNumero={Rg} nomeMae={Mae}",
+                i + 1, lista.Count,
+                doc.Nome ?? "(null)",
+                doc.Cpf ?? "(null)",
+                doc.RgNumero ?? "(null)",
+                doc.NomeMae ?? "(null)");
         }
 
         _logger.LogInformation("Consolidando {Total} JSONs extraidos...", extraidos.Count);
         
-        var jsonLista = JsonSerializer.Serialize(extraidos, new JsonSerializerOptions { WriteIndented = true });
+        var jsonOpts = new JsonSerializerOptions { WriteIndented = true };
+        var jsonLista = JsonSerializer.Serialize(extraidos, jsonOpts);
+        _logger.LogDebug("JSONs individuais para consolidação:\n{Json}", jsonLista);
         string promptConsolidacao = $@"{prompt}
 
 IMPORTANTE: Você está na fase de CONSOLIDAÇÃO. 
@@ -183,7 +196,16 @@ Dados extraídos individualmente:
 {jsonLista}";
 
         // Chama sem enviar imagens, apenas o texto com os JSONs para o Gemini consolidar (Reduce).
-        return await ExecutarComRetryAsync(promptConsolidacao, new List<(string b64, string mime)>(), ct);
+        var consolidado = await ExecutarComRetryAsync(promptConsolidacao, new List<(string b64, string mime)>(), ct);
+        
+        _logger.LogInformation(
+            "DIAGNÓSTICO Reduce - JSON final: nome={Nome} cpf={Cpf} rgNumero={Rg} nomeMae={Mae}",
+            consolidado.Nome ?? "(null)",
+            consolidado.Cpf ?? "(null)",
+            consolidado.RgNumero ?? "(null)",
+            consolidado.NomeMae ?? "(null)");
+        
+        return consolidado;
     }
 
     private async Task<DocumentoExtraido> ExecutarComRetryAsync(string prompt, List<(string b64, string mime)> imagens, CancellationToken ct)

@@ -267,3 +267,23 @@ async def liveness(
         "movimentoDetectado": movimento_ok,
         "framesAnalisados": len(frames),
     }
+
+
+@app.post("/diagnostico/rosto")
+async def diagnostico_rosto(
+    file: UploadFile = File(...),
+    token: bool = Depends(verificar_token),
+):
+    """
+    Diagnostico: detecta rostos e mostra estatisticas da imagem.
+    Util para depurar problemas de deteccao antes de chamar o DeepFace.
+    """
+    raw = await file.read()
+    img = _decode_image(raw)
+    h, w = img.shape[:2]
+    rostos = detectar_rostos(img)
+    return {
+        "dimensoes": f"{w}x{h}",
+        "rostosDetectados": len(rostos),
+        "rostos": [{"x": x, "y": y, "w": rw, "h": rh} for x, y, rw, rh in rostos],
+    }
