@@ -2,8 +2,10 @@
 # ADR-020: deploy em containers via Coolify
 FROM node:20-alpine AS deps
 WORKDIR /app
+# Nao usar --omit=optional: Next.js 16 precisa dos binarios SWC especificos
+# da plataforma (ex: @next/swc-linux-x64-musl no Alpine). Sem eles o build falha.
 COPY package.json package-lock.json ./
-RUN npm ci --omit=optional
+RUN npm ci
 
 FROM node:20-alpine AS builder
 WORKDIR /app
