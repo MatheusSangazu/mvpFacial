@@ -11,12 +11,29 @@ public static class ValidacaoDocumentoService
     {
         var falhas = new List<FalhaValidacao>();
 
-        var tipo = doc.TipoDocumento?.Trim();
-        var tiposValidos = new[] { "RG", "CNH", "Comprovante" };
+        var tipo = doc.TipoDocumento?.Trim().ToUpperInvariant();
+        // Tolerancia com variacoes comuns do Gemini: "RG", "Cédula de Identidade",
+        // "CNH", "Carteira Nacional de Habilitacao", "Comprovante de Residencia", etc.
+        var tiposValidos = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
+        {
+            "RG", "CNH", "COMPROVANTE",
+            "IDENTIDADE", "CEDULA DE IDENTIDADE", "CÉDULA DE IDENTIDADE",
+            "HABILITACAO", "CARTEIRA NACIONAL DE HABILITACAO",
+            "COMPROVANTE DE RESIDENCIA", "COMPROVANTE DE ENDERECO",
+            "IDENTIFICACAO"
+        };
         if (string.IsNullOrWhiteSpace(tipo) || !tiposValidos.Contains(tipo))
-            falhas.Add(new("TIPO_DESCONHECIDO", "tipoDocumento ausente ou invalido."));
+            falhas.Add(new("TIPO_DESCONHECIDO", $"tipoDocumento ausente ou invalido (valor: '{doc.TipoDocumento}')."));
 
-        if (tipo == "Comprovante")
+        // Normaliza para os 3 tipos canonicos antes de validar
+        doc.TipoDocumento = tipo switch
+        {
+            "CNH" or "HABILITACAO" or "CARTEIRA NACIONAL DE HABILITACAO" => "CNH",
+            "COMPROVANTE" or "COMPROVANTE DE RESIDENCIA" or "COMPROVANTE DE ENDERECO" => "Comprovante",
+            _ => "RG"  // todos os outros variantes de identidade viram RG
+        };
+
+        if (doc.TipoDocumento == "Comprovante")
             ValidarComprovante(doc, falhas);
         else
             ValidarIdentidade(doc, falhas);

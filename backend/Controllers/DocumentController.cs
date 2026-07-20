@@ -4,12 +4,13 @@
 // - /api/documentos/extrair-comprovante -> Comprovante de residencia
 using backend.Services;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.Extensions.Logging;
 
 namespace backend.Controllers;
 
 [ApiController]
 [Route("api/[controller]")]  // rota: /api/documentos
-public class DocumentosController(GeminiService gemini) : ControllerBase
+public class DocumentosController(GeminiService gemini, ILogger<DocumentosController> logger) : ControllerBase
 {
     /// <summary>Extrai RG ou CNH (documento de identidade) e aplica validacao ADR-006 Camada 1.
     /// Suporta multiplas imagens (frente + verso do RG).</summary>
@@ -85,6 +86,16 @@ public class DocumentosController(GeminiService gemini) : ControllerBase
 
         var falhas = ValidacaoDocumentoService.ValidarCamada1(doc);
         var bloqueantes = ValidacaoDocumentoService.ApenasBloqueantes(falhas);
+
+        // LOG DE DIAGNOSTICO: mostra todas as falhas separadas por tipo.
+        // Ajuda a entender se o frontend esta sendo bloqueado por aviso opcional.
+        logger.LogInformation(
+            "Validacao doc - tipo={Tipo} bloqueantes={Bloqueantes} opcionais={Opcionais} | bloqueantesLista=[{Bloc}] opcionaisLista=[{Opc}]",
+            doc.TipoDocumento,
+            bloqueantes.Count,
+            falhas.Count - bloqueantes.Count,
+            string.Join(", ", bloqueantes.Select(f => f.Codigo)),
+            string.Join(", ", falhas.Where(f => !bloqueantes.Contains(f)).Select(f => f.Codigo)));
 
         Response.Headers["X-Extracao-Confianca"] = doc.Confianca?.ToString("0.00") ?? "null";
         Response.Headers["X-Extracao-Imagens"] = lista.Count.ToString();
